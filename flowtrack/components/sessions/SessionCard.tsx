@@ -1,0 +1,36 @@
+import type { Session } from '@/lib/db/sessions';
+
+interface SessionCardProps {
+  session: Session;
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  return date.toLocaleDateString(undefined, { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+}
+
+function formatDurationMinutes(durationSeconds: number): string {
+  const minutes = Math.round(durationSeconds / 60);
+  return `${minutes} min`;
+}
+
+export default function SessionCard({ session }: SessionCardProps) {
+  return (
+    <div className="border rounded-lg p-3 bg-white flex justify-between items-center">
+      <div>
+        <div className="text-sm text-gray-500">{formatDate(session.date)}</div>
+        <div className="text-base font-medium">
+          {session.activity || '(no title)'}
+        </div>
+        <div className="text-xs text-gray-500">
+          {formatDurationMinutes(session.duration_seconds)} · Flow: {session.flow_rating}
+        </div>
+      </div>
+    </div>
+  );
+}
