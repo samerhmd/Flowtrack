@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { getPhysioLogForDate, upsertPhysioLog, PhysioLogInput } from '@/lib/db/physio';
+import SignInInline from '@/components/auth/SignInInline';
 import { Button } from '@/components/ui/Button';
 
 interface PhysioFormProps {
@@ -27,11 +28,18 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   useEffect(() => {
     const loadExistingLog = async () => {
       try {
         const supabase = createSupabaseBrowserClient();
+        const { data: sessionRes } = await supabase.auth.getSession();
+        if (!sessionRes.session) {
+          setNeedsAuth(true);
+          setIsLoading(false);
+          return;
+        }
         const today = new Date().toISOString().slice(0, 10);
         const existingLog = await getPhysioLogForDate(supabase, today);
         
@@ -188,6 +196,18 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
     return (
       <div className="space-y-4">
         <div className="text-center text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (needsAuth) {
+    return (
+      <div className="space-y-4">
+        <div className="text-center space-y-2">
+          <h2 className="text-lg font-semibold">Sign in to save your physio</h2>
+          <p className="text-sm text-gray-600">Use your email to receive a magic link.</p>
+        </div>
+        <SignInInline />
       </div>
     );
   }
