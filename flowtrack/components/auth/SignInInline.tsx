@@ -9,18 +9,35 @@ export default function SignInInline() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const normalizeEmail = (value: string) => {
+    const trimmed = value.trim();
+    const parts = trimmed.split('@');
+    if (parts.length !== 2) return trimmed;
+    const local = parts[0];
+    const domain = parts[1].replace(/,/g, '.');
+    return `${local}@${domain}`;
+  };
+
+  const isValidEmail = (value: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  };
+
   const handleSend = async () => {
-    if (!email) return;
+    const normalized = normalizeEmail(email);
+    if (!isValidEmail(normalized)) {
+      setError('Enter a valid email address');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const supabase = createSupabaseBrowserClient();
       const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
-      const { error: err } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+      const { error: err } = await supabase.auth.signInWithOtp({ email: normalized, options: { emailRedirectTo: redirectTo } });
       if (err) throw err;
       setSent(true);
     } catch (e: any) {
-      setError('Failed to send sign-in link.');
+      setError(e?.message ? String(e.message) : 'Failed to send sign-in link.');
     } finally {
       setLoading(false);
     }
@@ -53,4 +70,3 @@ export default function SignInInline() {
     </div>
   );
 }
-
