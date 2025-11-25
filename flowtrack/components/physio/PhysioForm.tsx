@@ -31,9 +31,9 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
   const [needsAuth, setNeedsAuth] = useState(false);
 
   useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
     const loadExistingLog = async () => {
       try {
-        const supabase = createSupabaseBrowserClient();
         const { data: sessionRes } = await supabase.auth.getSession();
         if (!sessionRes.session) {
           setNeedsAuth(true);
@@ -58,6 +58,15 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
     };
 
     loadExistingLog();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setNeedsAuth(false);
+        loadExistingLog();
+      }
+    });
+    return () => {
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const handleNext = () => {

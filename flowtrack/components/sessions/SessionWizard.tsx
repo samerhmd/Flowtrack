@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { createSession, SessionCreateInput } from '@/lib/db/sessions';
 import SessionTimer from './SessionTimer';
 import { Button } from '@/components/ui/Button';
+import SignInInline from '@/components/auth/SignInInline';
 
 interface SessionWizardProps {
   onSuccess?: () => void;
@@ -21,6 +22,22 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
   const [notes, setNotes] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      setNeedsAuth(!data.session);
+    };
+    init();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setNeedsAuth(!session);
+    });
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   const handleStartSession = () => {
     setStartTime(new Date());
@@ -53,8 +70,10 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
         Math.round((endTime.getTime() - startTime.getTime()) / 1000),
         1
       );
+      const date = startIso.slice(0, 10);
 
       const payload: SessionCreateInput = {
+        date,
         start_time: startIso,
         end_time: endIso,
         duration_seconds: durationSeconds,
@@ -184,6 +203,15 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
 
   return (
     <div className="border rounded-lg p-4 bg-white shadow-sm">
+      {needsAuth && (
+        <div className="space-y-4 mb-4">
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-semibold">Sign in to save your session</h2>
+            <p className="text-sm text-gray-600">Use your email to receive a magic link.</p>
+          </div>
+          <SignInInline />
+        </div>
+      )}
       {phase === 'pre' && renderPrePhase()}
       {phase === 'in' && renderInPhase()}
       {phase === 'post' && renderPostPhase()}

@@ -15,6 +15,7 @@ export interface Session {
 }
 
 export interface SessionCreateInput {
+  date: string;
   start_time: string;
   end_time: string;
   duration_seconds: number;
