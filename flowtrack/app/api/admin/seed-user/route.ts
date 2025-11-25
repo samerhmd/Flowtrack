@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     if (existing) {
       const { error: updErr } = await supabase.auth.admin.updateUserById(existing.id, {
         password,
-        emailConfirm: true,
+        email_confirm: true,
       });
       if (updErr) throw updErr;
       return new Response(JSON.stringify({ ok: true, message: 'User updated', id: existing.id }), {
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const { data: created, error: createErr } = await supabase.auth.admin.createUser({
       email,
       password,
-      emailConfirm: true,
+      email_confirm: true,
     });
     if (createErr) throw createErr;
 
@@ -53,4 +53,3 @@ export async function POST(req: NextRequest) {
     });
   }
 }
-
