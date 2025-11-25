@@ -120,12 +120,27 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
       };
 
       const supabase = createSupabaseBrowserClient();
-      await upsertPhysioLog(supabase, payload);
-      
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const token = sessionRes.session?.access_token;
+
+      const resp = await fetch('/api/physio/upsert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body?.message || 'Failed');
+      }
+
       onSuccess?.();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving physio log:', err);
-      setError('Failed to save your physio log. Please try again.');
+      setError(err?.message ? String(err.message) : 'Failed to save your physio log. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
