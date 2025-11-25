@@ -45,7 +45,7 @@ export async function upsertPhysioLog(supabase: SupabaseClient, input: PhysioLog
   try {
     const { data, error } = await supabase
       .from('physio_logs')
-      .upsert(input)
+      .upsert(input, { onConflict: 'user_id,date' })
       .select('*')
       .single();
 

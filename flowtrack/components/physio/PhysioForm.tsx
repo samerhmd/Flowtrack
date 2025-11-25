@@ -214,7 +214,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
       <div className="space-y-4">
         <div className="text-center space-y-2">
           <h2 className="text-lg font-semibold">Sign in to save your physio</h2>
-          <p className="text-sm text-gray-600">Use your email to receive a magic link.</p>
+          <p className="text-sm text-gray-600">Use your email and password.</p>
         </div>
         <SignInInline />
       </div>
