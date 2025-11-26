@@ -12,10 +12,13 @@ export interface Session {
   activity?: string;
   flow_rating: number;
   notes?: string;
+  environment?: string;
+  noise?: string;
+  session_type?: string;
+  distraction_level?: number;
 }
 
 export interface SessionCreateInput {
-  date: string;
   start_time: string;
   end_time: string;
   duration_seconds: number;
@@ -23,6 +26,11 @@ export interface SessionCreateInput {
   flow_rating: number;
   notes?: string;
   flow_recipe_version?: number;
+  date: string;
+  environment?: string;
+  noise?: string;
+  session_type?: string;
+  distraction_level?: number;
 }
 
 export interface SessionMetaUpdate {
@@ -121,6 +129,35 @@ export async function updateSessionMeta(supabase: SupabaseClient, id: string, up
     return data;
   } catch (error) {
     console.error('Error in updateSessionMeta:', error);
+    throw error;
+  }
+}
+
+export interface SessionUpdateInput {
+  activity?: string;
+  notes?: string;
+  flow_rating?: number;
+  environment?: string;
+  noise?: string;
+  session_type?: string;
+  distraction_level?: number;
+}
+
+export async function updateSession(supabase: SupabaseClient, id: string, updates: SessionUpdateInput): Promise<Session> {
+  try {
+    const { data, error } = await supabase
+      .from('sessions')
+      .update(updates)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) {
+      console.error('Error updating session:', error);
+      throw error;
+    }
+    return data as Session;
+  } catch (error) {
+    console.error('Error in updateSession:', error);
     throw error;
   }
 }

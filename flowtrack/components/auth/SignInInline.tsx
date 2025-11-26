@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
 
 export default function SignInInline() {
   const [email, setEmail] = useState('');
@@ -9,6 +10,7 @@ export default function SignInInline() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const router = useRouter();
 
   const normalizeEmail = (value: string) => {
     const trimmed = value.trim();
@@ -37,6 +39,8 @@ export default function SignInInline() {
       const supabase = createSupabaseBrowserClient();
       const { error: err } = await supabase.auth.signInWithPassword({ email: normalized, password });
       if (err) throw err;
+      router.replace('/dashboard');
+      router.refresh();
     } catch (e: any) {
       setError(e?.message ? String(e.message) : 'Failed to sign in.');
     } finally {
@@ -63,6 +67,8 @@ export default function SignInInline() {
       // Try immediate sign-in (works when email confirm is disabled)
       const { error: signErr } = await supabase.auth.signInWithPassword({ email: normalized, password });
       if (signErr) throw signErr;
+      router.replace('/dashboard');
+      router.refresh();
     } catch (e: any) {
       setError(e?.message ? String(e.message) : 'Failed to create account.');
     } finally {

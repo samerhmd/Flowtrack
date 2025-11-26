@@ -25,6 +25,14 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
   const [focusClarity, setFocusClarity] = useState<number | null>(null);
   const [stress, setStress] = useState<number | null>(null);
   const [context, setContext] = useState<string>('');
+  const [sleepHours, setSleepHours] = useState<number | null>(null);
+  const [sleepQuality, setSleepQuality] = useState<number | null>(null);
+  const [restingHr, setRestingHr] = useState<number | null>(null);
+  const [hrvScore, setHrvScore] = useState<number | null>(null);
+  const [caffeineTotal, setCaffeineTotal] = useState<number | null>(null);
+  const [caffeineLastTime, setCaffeineLastTime] = useState<string>('');
+  const [bedTime, setBedTime] = useState<string>('');
+  const [wakeTime, setWakeTime] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,25 +118,18 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
         focus_clarity: focusClarity,
         stress,
         context: context.trim() || undefined,
+        sleep_hours: sleepHours ?? undefined,
+        sleep_quality: sleepQuality ?? undefined,
+        resting_hr: restingHr ?? undefined,
+        hrv_score: hrvScore ?? undefined,
+        caffeine_total_mg: caffeineTotal ?? undefined,
+        caffeine_last_intake_time: caffeineLastTime || undefined,
+        bed_time: bedTime || undefined,
+        wake_time: wakeTime || undefined,
       };
 
       const supabase = createSupabaseBrowserClient();
-      const { data: sessionRes } = await supabase.auth.getSession();
-      const token = sessionRes.session?.access_token;
-
-      const resp = await fetch('/api/physio/upsert', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        throw new Error(body?.message || 'Failed');
-      }
+      await upsertPhysioLog(supabase, payload);
 
       onSuccess?.();
     } catch (err: any) {
@@ -175,6 +176,41 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
             maxLength={50}
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">1-2 words to describe your day</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Sleep Hours</label>
+              <input type="number" step="0.1" value={sleepHours ?? ''} onChange={(e) => setSleepHours(e.target.value ? parseFloat(e.target.value) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Sleep Quality (0–10)</label>
+              <input type="number" min={0} max={10} value={sleepQuality ?? ''} onChange={(e) => setSleepQuality(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Resting HR (bpm)</label>
+              <input type="number" value={restingHr ?? ''} onChange={(e) => setRestingHr(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">HRV Score</label>
+              <input type="number" value={hrvScore ?? ''} onChange={(e) => setHrvScore(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Caffeine Total (mg)</label>
+              <input type="number" step="1" value={caffeineTotal ?? ''} onChange={(e) => setCaffeineTotal(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Last Caffeine Time</label>
+              <input type="datetime-local" value={caffeineLastTime} onChange={(e) => setCaffeineLastTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Bed Time</label>
+              <input type="datetime-local" value={bedTime} onChange={(e) => setBedTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Wake Time</label>
+              <input type="datetime-local" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+            </div>
+          </div>
         </div>
       );
     }

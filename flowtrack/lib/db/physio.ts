@@ -19,6 +19,14 @@ export interface PhysioLogInput {
   focus_clarity: number;
   stress: number;
   context?: string;
+  sleep_hours?: number;
+  sleep_quality?: number;
+  resting_hr?: number;
+  hrv_score?: number;
+  caffeine_total_mg?: number;
+  caffeine_last_intake_time?: string;
+  bed_time?: string;
+  wake_time?: string;
 }
 
 export async function getPhysioLogForDate(supabase: SupabaseClient, date: string): Promise<PhysioLog | null> {

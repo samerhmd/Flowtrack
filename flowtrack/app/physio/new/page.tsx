@@ -1,13 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PhysioForm from '@/components/physio/PhysioForm';
 import { Button } from '@/components/ui/Button';
+import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 
 export default function NewPhysioPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const router = useRouter();
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const supabase = createSupabaseBrowserClient();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        setNeedsAuth(true);
+        router.push('/login');
+      }
+    });
+  }, []);
 
   const handleSuccess = () => {
     setIsSuccess(true);

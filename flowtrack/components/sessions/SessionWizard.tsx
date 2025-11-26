@@ -20,6 +20,10 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [flowRating, setFlowRating] = useState<number | null>(null);
   const [notes, setNotes] = useState<string>('');
+  const [environment, setEnvironment] = useState<string>('');
+  const [noise, setNoise] = useState<string>('');
+  const [sessionType, setSessionType] = useState<string>('');
+  const [distractionLevel, setDistractionLevel] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState(false);
@@ -80,25 +84,17 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
         activity: activity.trim() || undefined,
         flow_rating: flowRating,
         notes: notes.trim() || undefined,
+        environment: environment || undefined,
+        noise: noise || undefined,
+        session_type: sessionType || undefined,
+        distraction_level: distractionLevel ?? undefined,
       };
 
       const supabase = createSupabaseBrowserClient();
       const { data: sessionRes } = await supabase.auth.getSession();
       const token = sessionRes.session?.access_token;
 
-      const resp = await fetch('/api/sessions/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        throw new Error(body?.message || 'Failed to save');
-      }
+      await createSession(supabase, payload);
       
       onSuccess?.();
     } catch (err) {
@@ -199,6 +195,42 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
             rows={3}
             maxLength={500}
           />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Environment</label>
+            <select value={environment} onChange={(e) => setEnvironment(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600">
+              <option value="">Select</option>
+              <option value="home">Home</option>
+              <option value="office">Office</option>
+              <option value="cafe">Cafe</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Noise</label>
+            <select value={noise} onChange={(e) => setNoise(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600">
+              <option value="">Select</option>
+              <option value="quiet">Quiet</option>
+              <option value="music">Music</option>
+              <option value="white_noise">White Noise</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Session Type</label>
+            <select value={sessionType} onChange={(e) => setSessionType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600">
+              <option value="">Select</option>
+              <option value="deep_work">Deep Work</option>
+              <option value="shallow">Shallow</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Distraction Level (0–10)</label>
+            <input type="number" min={0} max={10} value={distractionLevel ?? ''} onChange={(e) => setDistractionLevel(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+          </div>
         </div>
 
         {error && (
