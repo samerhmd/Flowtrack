@@ -217,7 +217,7 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
   };
 
   return (
-    <div className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700">
+    <div className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700 dark:text-gray-200">
       {needsAuth && (
         <div className="space-y-4 mb-4">
           <div className="text-center space-y-2">

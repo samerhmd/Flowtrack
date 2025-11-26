@@ -11,7 +11,7 @@ export default function NewSessionPage() {
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto mt-8">
-      <h1 className="text-xl font-semibold">New Session</h1>
+      <h1 className="text-xl font-semibold dark:text-gray-200">New Session</h1>
       <p className="text-sm text-gray-600 dark:text-gray-300">
         Start a focused work block, then rate your flow when you&apos;re done.
       </p>
