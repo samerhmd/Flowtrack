@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 
 export default async function PhysioHistoryPage() {
