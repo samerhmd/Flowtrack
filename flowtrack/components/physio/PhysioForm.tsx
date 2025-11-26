@@ -41,15 +41,8 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
           return;
         }
         const today = new Date().toISOString().slice(0, 10);
-        const existingLog = await getPhysioLogForDate(supabase, today);
-        
-        if (existingLog) {
-          setEnergy(existingLog.energy);
-          setMood(existingLog.mood);
-          setFocusClarity(existingLog.focus_clarity);
-          setStress(existingLog.stress);
-          setContext(existingLog.context || '');
-        }
+        // Do not prefill from existing log; start fresh each time
+        await getPhysioLogForDate(supabase, today);
       } catch (err) {
         console.error('Error loading existing physio log:', err);
       } finally {
