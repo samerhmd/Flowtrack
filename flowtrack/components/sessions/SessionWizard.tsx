@@ -83,7 +83,22 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
       };
 
       const supabase = createSupabaseBrowserClient();
-      await createSession(supabase, payload);
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const token = sessionRes.session?.access_token;
+
+      const resp = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body?.message || 'Failed to save');
+      }
       
       onSuccess?.();
     } catch (err) {

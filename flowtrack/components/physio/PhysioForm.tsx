@@ -170,7 +170,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
     if (currentStep.key === 'context') {
       return (
         <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             {currentStep.label}
           </label>
           <input
@@ -178,10 +178,10 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
             value={context}
             onChange={(e) => setContext(e.target.value)}
             placeholder="e.g., tired, gym, travel"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-black dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
             maxLength={50}
           />
-          <p className="text-xs text-gray-500">1-2 words to describe your day</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">1-2 words to describe your day</p>
         </div>
       );
     }
@@ -193,7 +193,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
 
     return (
       <div className="space-y-4">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
           {currentStep.label}
         </label>
         <div className="flex flex-wrap gap-2">
@@ -205,7 +205,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
               className={`w-12 h-12 rounded-md border-2 font-medium transition-colors ${
                 currentValue === value
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 dark:bg-zinc-900 dark:text-gray-200 dark:border-gray-700 dark:hover:border-gray-600'
               }`}
             >
               {value}
@@ -219,7 +219,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="text-center text-gray-500">Loading...</div>
+        <div className="text-center text-gray-500 dark:text-gray-300">Loading...</div>
       </div>
     );
   }
@@ -229,7 +229,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
       <div className="space-y-4">
         <div className="text-center space-y-2">
           <h2 className="text-lg font-semibold">Sign in to save your physio</h2>
-          <p className="text-sm text-gray-600">Use your email and password.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300">Use your email and password.</p>
         </div>
         <SignInInline />
       </div>
@@ -239,7 +239,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <p className="text-sm text-gray-500">Step {step + 1} of {STEPS.length}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-300">Step {step + 1} of {STEPS.length}</p>
       </div>
       
       {renderStepContent()}

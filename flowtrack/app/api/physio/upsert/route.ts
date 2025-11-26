@@ -12,10 +12,16 @@ function getUserIdFromToken(token: string | null): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    return new Response(JSON.stringify({ ok: false, message: 'Missing Supabase envs' }), {
+  if (!url) {
+    return new Response(JSON.stringify({ ok: false, message: 'Missing Supabase URL env' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  if (!serviceRoleKey) {
+    return new Response(JSON.stringify({ ok: false, message: 'Missing SUPABASE_SERVICE_ROLE_KEY env' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -66,4 +72,4 @@ export async function POST(req: NextRequest) {
     });
   }
 }
-
+export const runtime = 'nodejs';
