@@ -12,7 +12,7 @@ export default function NewSessionPage() {
   return (
     <div className="space-y-4 max-w-2xl mx-auto mt-8">
       <h1 className="text-xl font-semibold">New Session</h1>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-gray-600 dark:text-gray-300">
         Start a focused work block, then rate your flow when you&apos;re done.
       </p>
 
@@ -24,7 +24,7 @@ export default function NewSessionPage() {
           }}
         />
       ) : (
-        <p className="text-sm text-green-600">
+        <p className="text-sm text-green-600 dark:text-green-500">
           Session saved. Redirecting...
         </p>
       )}
