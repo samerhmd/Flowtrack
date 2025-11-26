@@ -111,9 +111,9 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
 
   const renderPrePhase = () => (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Ready to start?</h2>
+      <h2 className="text-lg font-semibold dark:text-gray-200">Ready to start?</h2>
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
           Activity (optional)
         </label>
         <input
@@ -121,7 +121,7 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
           value={activity}
           onChange={(e) => setActivity(e.target.value)}
           placeholder="What will you work on?"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-black dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
           maxLength={100}
         />
       </div>
@@ -137,8 +137,8 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
   const renderInPhase = () => (
     <div className="space-y-4">
       <div className="text-center space-y-2">
-        <h2 className="text-lg font-semibold">Session Running</h2>
-        <p className="text-sm text-gray-600">
+        <h2 className="text-lg font-semibold dark:text-gray-200">Session Running</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
           Started at {startTime?.toLocaleTimeString()}
         </p>
         {startTime && <SessionTimer startTime={startTime} />}
@@ -159,14 +159,14 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
 
     return (
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Session Complete</h2>
-        <div className="bg-gray-50 p-3 rounded-md">
-          <p className="text-sm text-gray-600">Duration: {durationMinutes} minutes</p>
-          {activity && <p className="text-sm text-gray-600">Activity: {activity}</p>}
+        <h2 className="text-lg font-semibold dark:text-gray-200">Session Complete</h2>
+        <div className="bg-gray-50 p-3 rounded-md dark:bg-zinc-900">
+          <p className="text-sm text-gray-600 dark:text-gray-300">Duration: {durationMinutes} minutes</p>
+          {activity && <p className="text-sm text-gray-600 dark:text-gray-300">Activity: {activity}</p>}
         </div>
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Flow Rating (0–10) *
           </label>
           <div className="flex flex-wrap gap-2">
@@ -178,7 +178,7 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
                 className={`w-10 h-10 rounded-md border-2 font-medium transition-colors ${
                   flowRating === value
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 dark:bg-zinc-900 dark:text-gray-200 dark:border-gray-700 dark:hover:border-gray-600'
                 }`}
               >
                 {value}
@@ -188,14 +188,14 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Notes (optional)
           </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="How did the session go?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-black dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
             rows={3}
             maxLength={500}
           />
@@ -217,12 +217,12 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
   };
 
   return (
-    <div className="border rounded-lg p-4 bg-white shadow-sm">
+    <div className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700">
       {needsAuth && (
         <div className="space-y-4 mb-4">
           <div className="text-center space-y-2">
-            <h2 className="text-lg font-semibold">Sign in to save your session</h2>
-            <p className="text-sm text-gray-600">Use your email and password.</p>
+            <h2 className="text-lg font-semibold dark:text-gray-200">Sign in to save your session</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Use your email and password.</p>
           </div>
           <SignInInline />
         </div>
