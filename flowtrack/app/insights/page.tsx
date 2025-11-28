@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 
@@ -65,7 +66,8 @@ import InsightsView from '@/components/insights/InsightsView';
 import { getDailyInsightsData } from '@/lib/db/insights';
 
 export default async function InsightsPage() {
-  const supabase = createSupabaseServerClient();
+  const cookieStore = await cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (

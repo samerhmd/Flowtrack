@@ -1,9 +1,11 @@
 export const dynamic = 'force-dynamic';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import { getPhysioLogsRange } from '@/lib/db/physio';
+import { cookies } from 'next/headers';
 
 export default async function PhysioHistoryPage() {
-  const supabase = createSupabaseServerClient();
+  const cookieStore = await cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (

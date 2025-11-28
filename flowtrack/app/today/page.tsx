@@ -5,9 +5,11 @@ import { createSupabaseServerClient } from '@/lib/supabaseServer'
 import { getTodayOverview } from '@/lib/db/today'
 import CaffeineQuickLog from '@/components/logging/CaffeineQuickLog'
 import WaterQuickLog from '@/components/logging/WaterQuickLog'
+import { cookies } from 'next/headers'
 
 export default async function TodayPage() {
-  const supabase = createSupabaseServerClient()
+  const cookieStore = await cookies()
+  const supabase = createSupabaseServerClient(cookieStore)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return (

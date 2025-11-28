@@ -4,9 +4,11 @@ import FlowRecipeView from '@/components/recipe/FlowRecipeView';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { cookies } from 'next/headers';
 
 export default async function FlowRecipePage() {
-  const supabase = createSupabaseServerClient();
+  const cookieStore = await cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (

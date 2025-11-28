@@ -26,9 +26,9 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     .eq('date', today)
     .maybeSingle();
 
+  // Gracefully handle transient fetch errors
   if (physioError) {
-    console.error('Error fetching today physio:', physioError);
-    throw physioError;
+    console.warn('Today physio unavailable:', physioError?.message || physioError);
   }
 
   // Get today's sessions
@@ -39,8 +39,7 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     .order('start_time', { ascending: false });
 
   if (todaySessionsError) {
-    console.error('Error fetching today sessions:', todaySessionsError);
-    throw todaySessionsError;
+    console.warn('Today sessions unavailable:', todaySessionsError?.message || todaySessionsError);
   }
 
   // Get last 7 days sessions
@@ -55,8 +54,7 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     .lte('date', today);
 
   if (last7DaysError) {
-    console.error('Error fetching last 7 days sessions:', last7DaysError);
-    throw last7DaysError;
+    console.warn('Last 7 days sessions unavailable:', last7DaysError?.message || last7DaysError);
   }
 
   const sessionCount = last7DaysData?.length || 0;
@@ -66,7 +64,7 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     : null;
 
   return {
-    todayPhysio: physioData,
+    todayPhysio: physioData ?? null,
     todaySessions: todaySessionsData || [],
     last7Days: {
       sessionCount,
