@@ -47,7 +47,7 @@ export default async function ExportPage() {
     <div className="space-y-4 max-w-3xl mx-auto mt-8">
       <header>
         <h1 className="text-xl font-semibold dark:text-gray-200">Export data</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-300">Download your FlowTrack data as JSON files for backup or analysis.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300">Download your FlowTrack data as CSV files for backup or analysis.</p>
       </header>
 
       <ExportView physio={physio} sessions={sessions} caffeine={caffeine} water={water} external={external} />

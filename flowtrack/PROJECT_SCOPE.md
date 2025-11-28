@@ -288,3 +288,5 @@
   "notes": "solid focus"
 }
 ```
+### Export (`/export`)
+- Lets the user download `physio_logs`, `sessions`, `caffeine_events`, `water_events`, and `external_daily_snapshots` as CSV files for backup/analysis.
