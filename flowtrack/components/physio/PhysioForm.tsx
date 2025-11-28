@@ -142,7 +142,7 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
       const { data: userRes } = await supabase.auth.getUser();
       if (!userRes.user) {
         setError('Please sign in to save your physio log.');
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
       const payload: PhysioLogInput = {

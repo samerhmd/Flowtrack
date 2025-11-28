@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import { getPhysioLogsRange } from '@/lib/db/physio';
 
 export default async function PhysioHistoryPage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (

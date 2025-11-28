@@ -65,7 +65,7 @@ import InsightsView from '@/components/insights/InsightsView';
 import { getDailyInsightsData } from '@/lib/db/insights';
 
 export default async function InsightsPage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (
