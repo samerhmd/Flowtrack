@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import Link from 'next/link';
+import { Button } from '@/components/ui/Button';
 
 type SessionRow = {
   id: string;
@@ -59,108 +61,37 @@ function aggregate<T extends string>(items: Array<{ key: T; rating: number }>) {
     .sort((a, b) => b.avg - a.avg);
 }
 
+import InsightsView from '@/components/insights/InsightsView';
+import { getDailyInsightsData } from '@/lib/db/insights';
+
 export default async function InsightsPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto mt-8">
         <h1 className="text-2xl font-semibold dark:text-gray-200">Insights</h1>
         <p className="text-sm text-gray-600 dark:text-gray-300">Please sign in to view insights.</p>
+        <div>
+          <Link href="/login">
+            <Button variant="primary">Sign In</Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
-  const { data: sessions } = await supabase
-    .from('sessions')
-    .select('*')
-    .order('date', { ascending: false })
-    .limit(500);
-
-  const { data: physios } = await supabase
-    .from('physio_logs')
-    .select('user_id,date,sleep_hours,caffeine_total_mg')
-    .order('date', { ascending: false })
-    .limit(500);
-
-  const physioByDate = new Map<string, PhysioRow>();
-  (physios || []).forEach(p => physioByDate.set(p.date, p));
-
-  const sRows: SessionRow[] = (sessions || []) as any;
-
-  const sleepAgg = aggregate(sRows.map(s => ({
-    key: bucketSleep(physioByDate.get(s.date)?.sleep_hours),
-    rating: s.flow_rating ?? 0,
-  })));
-
-  const cafAgg = aggregate(sRows.map(s => ({
-    key: bucketCaffeine(physioByDate.get(s.date)?.caffeine_total_mg),
-    rating: s.flow_rating ?? 0,
-  })));
-
-  const envAgg = aggregate(sRows.map(s => ({
-    key: (s.environment || 'unknown') as string,
-    rating: s.flow_rating ?? 0,
-  })));
-
-  const todAgg = aggregate(sRows.map(s => ({
-    key: bucketTimeOfDay(s.start_time),
-    rating: s.flow_rating ?? 0,
-  })));
+  const rows = await getDailyInsightsData(supabase, 90);
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto mt-8">
       <h1 className="text-2xl font-semibold dark:text-gray-200">Insights</h1>
       <p className="text-sm text-gray-600 dark:text-gray-300">
-        Best → worst conditions by average flow rating (last ~500 sessions).
+        How sleep, caffeine, environment and time-of-day correlate with flow (last ~60 days).
       </p>
 
       <section className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-3 dark:text-gray-200">Flow vs Sleep</h2>
-        <div className="space-y-2">
-          {sleepAgg.map(row => (
-            <div key={row.bucket} className="flex justify-between text-sm">
-              <span className="dark:text-gray-300">{row.bucket}</span>
-              <span className="dark:text-gray-200">{row.avg.toFixed(2)} / 10 ({row.count})</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border rounded-lg p-4 bg-white shadow-sm dark:bg:black dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-3 dark:text-gray-200">Flow vs Caffeine</h2>
-        <div className="space-y-2">
-          {cafAgg.map(row => (
-            <div key={row.bucket} className="flex justify-between text-sm">
-              <span className="dark:text-gray-300">{row.bucket}</span>
-              <span className="dark:text-gray-200">{row.avg.toFixed(2)} / 10 ({row.count})</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-3 dark:text-gray-200">Flow vs Environment</h2>
-        <div className="space-y-2">
-          {envAgg.map(row => (
-            <div key={row.bucket} className="flex justify-between text-sm">
-              <span className="dark:text-gray-300">{row.bucket}</span>
-              <span className="dark:text-gray-200">{row.avg.toFixed(2)} / 10 ({row.count})</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-3 dark:text-gray-200">Flow vs Time of Day</h2>
-        <div className="space-y-2">
-          {todAgg.map(row => (
-            <div key={row.bucket} className="flex justify-between text-sm">
-              <span className="dark:text-gray-300">{row.bucket}</span>
-              <span className="dark:text-gray-200">{row.avg.toFixed(2)} / 10 ({row.count})</span>
-            </div>
-          ))}
-        </div>
+        <InsightsView data={rows} />
       </section>
     </div>
   );

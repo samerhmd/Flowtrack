@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import { getPhysioLogsRange } from '@/lib/db/physio';
 
 export default async function PhysioHistoryPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return (
@@ -13,13 +14,7 @@ export default async function PhysioHistoryPage() {
     );
   }
 
-  const { data } = await supabase
-    .from('physio_logs')
-    .select('date,energy,mood,focus_clarity,stress,context')
-    .order('date', { ascending: false })
-    .limit(90);
-
-  const rows = data || [];
+  const rows = await getPhysioLogsRange(supabase, { limit: 90 });
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto mt-8">
@@ -34,7 +29,13 @@ export default async function PhysioHistoryPage() {
                 <span className="dark:text-gray-300">{r.date}</span>
                 <a href={`/physio/history/${r.date}`} className="text-blue-600">Edit</a>
               </div>
-              <div className="text-xs text-gray-600 dark:text-gray-300">E {r.energy} · M {r.mood} · F {r.focus_clarity} · S {r.stress} {r.context ? `· ${r.context}` : ''}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">
+                E {r.energy} · M {r.mood} · F {r.focus_clarity} · S {r.stress}
+                {r.context ? ` · ${r.context}` : ''}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                Sleep {r.sleep_hours ?? '–'} h · Caffeine {r.caffeine_total_mg ?? '–'} mg
+              </div>
             </div>
           ))
         )}

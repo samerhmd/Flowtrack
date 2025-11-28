@@ -31,6 +31,7 @@ export default function SessionCard({ session }: SessionCardProps) {
           {formatDurationMinutes(session.duration_seconds)} · Flow: {session.flow_rating}
         </div>
       </div>
+      <a href={`/sessions/${session.id}/edit`} className="text-sm text-blue-600 hover:underline">Edit</a>
     </div>
   );
 }

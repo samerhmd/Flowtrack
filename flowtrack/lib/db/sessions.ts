@@ -31,6 +31,7 @@ export interface SessionCreateInput {
   noise?: string;
   session_type?: string;
   distraction_level?: number;
+  user_id?: string;
 }
 
 export interface SessionMetaUpdate {

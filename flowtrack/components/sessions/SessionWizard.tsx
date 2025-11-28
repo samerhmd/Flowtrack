@@ -27,9 +27,9 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const supabase = createSupabaseBrowserClient();
 
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
     const init = async () => {
       const { data } = await supabase.auth.getSession();
       setNeedsAuth(!data.session);
@@ -76,6 +76,13 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
       );
       const date = startIso.slice(0, 10);
 
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user) {
+        setNeedsAuth(true);
+        setError('Please sign in to save your session');
+        return;
+      }
+
       const payload: SessionCreateInput = {
         date,
         start_time: startIso,
@@ -88,11 +95,8 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
         noise: noise || undefined,
         session_type: sessionType || undefined,
         distraction_level: distractionLevel ?? undefined,
+        user_id: userRes.user.id,
       };
-
-      const supabase = createSupabaseBrowserClient();
-      const { data: sessionRes } = await supabase.auth.getSession();
-      const token = sessionRes.session?.access_token;
 
       await createSession(supabase, payload);
       
@@ -120,6 +124,7 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-black dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
           maxLength={100}
         />
+        <p className="text-xs text-gray-500 dark:text-gray-400">Max 100 characters</p>
       </div>
       <Button
         onClick={handleStartSession}
@@ -195,6 +200,7 @@ export default function SessionWizard({ onSuccess }: SessionWizardProps) {
             rows={3}
             maxLength={500}
           />
+          <p className="text-xs text-gray-500 dark:text-gray-400">Max 500 characters</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

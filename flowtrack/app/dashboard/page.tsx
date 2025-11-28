@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { getDashboardData } from '@/lib/db/dashboard';
+import CaffeineQuickLog from '@/components/logging/CaffeineQuickLog';
+import WaterQuickLog from '@/components/logging/WaterQuickLog';
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -13,15 +15,24 @@ export default function DashboardPage() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     const load = async () => {
-      const { data: sessionRes } = await supabase.auth.getSession();
-      if (!sessionRes.session) {
+      try {
+        const { data: sessionRes } = await supabase.auth.getSession();
+        if (!sessionRes.session) {
+          setNeedsAuth(true);
+          setLoading(false);
+          return;
+        }
+        try {
+          const d = await getDashboardData(supabase);
+          setData(d);
+        } catch {
+          setData(null);
+        }
+      } catch {
         setNeedsAuth(true);
+      } finally {
         setLoading(false);
-        return;
       }
-      const d = await getDashboardData(supabase);
-      setData(d);
-      setLoading(false);
     };
     load();
   }, []);
@@ -51,17 +62,25 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto mt-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold dark:text-gray-200">Dashboard</h1>
-        <div className="flex gap-2">
+      <section className="mb-6">
+        <h2 className="text-lg font-semibold mb-2 dark:text-gray-200">Quick actions</h2>
+        <div className="flex flex-wrap gap-3 mb-3">
           <Link href="/physio/new">
             <Button variant="primary">Log Physio</Button>
           </Link>
           <Link href="/sessions/new">
             <Button variant="primary">Start Session</Button>
           </Link>
+          <Link href="/today" prefetch={false} className="text-xs font-medium text-sky-500 hover:underline self-center">
+            Go to Today view
+          </Link>
         </div>
-      </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <CaffeineQuickLog />
+          <WaterQuickLog />
+        </div>
+      </section>
+      <h1 className="text-2xl font-semibold dark:text-gray-200">Dashboard</h1>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="border rounded-lg p-4 bg-white shadow-sm dark:bg-black dark:border-gray-700">
@@ -94,11 +113,14 @@ export default function DashboardPage() {
               )}
             </div>
           ) : (
-            <div className="text-center py-4">
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">No physio logged today — log your first snapshot.</p>
-              <Link href="/physio/new">
-                <Button variant="primary" size="sm">Log Physio</Button>
-              </Link>
+            <div className="text-center py-4 space-y-2">
+              <p className="text-sm text-gray-600 dark:text-gray-300">No physio logged today — log your first snapshot.</p>
+              <div className="flex justify-center gap-3">
+                <Link href="/physio/new">
+                  <Button variant="primary" size="sm">Log Physio</Button>
+                </Link>
+                <Link href="/physio/history" className="text-sm text-blue-600 hover:underline self-center">View history →</Link>
+              </div>
             </div>
           )}
         </section>
@@ -127,7 +149,7 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="mt-4">
-            <Link href="/sessions" className="text-sm text-blue-600 hover:underline">
+            <Link href="/sessions" prefetch={false} className="text-sm text-blue-600 hover:underline">
               View sessions →
             </Link>
           </div>
@@ -147,9 +169,12 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4">
-            <Link href="/flow-recipe" className="text-sm text-blue-600 hover:underline">
+          <div className="mt-4 flex gap-4">
+            <Link href="/flow-recipe" prefetch={false} className="text-sm text-blue-600 hover:underline">
               View flow recipe →
+            </Link>
+            <Link href="/insights" prefetch={false} className="text-sm text-blue-600 hover:underline">
+              View insights →
             </Link>
           </div>
         </section>

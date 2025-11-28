@@ -22,21 +22,20 @@ export interface FlowRecipeItemUpdate {
   order_index?: number;
 }
 
-export async function getFlowRecipeItems(supabase: SupabaseClient): Promise<FlowRecipeItem[]> {
+export async function getFlowRecipeItems(supabase: SupabaseClient | Promise<SupabaseClient>): Promise<FlowRecipeItem[]> {
   try {
-    const { data, error } = await supabase
+    const client = (await supabase) as SupabaseClient;
+    const { data, error } = await client
       .from('flow_recipe_items')
       .select('*')
       .order('order_index', { ascending: true });
 
     if (error) {
-      console.error('Error fetching flow recipe items:', error);
       throw error;
     }
 
     return data || [];
   } catch (error) {
-    console.error('Error in getFlowRecipeItems:', error);
     throw error;
   }
 }

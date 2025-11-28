@@ -15,7 +15,8 @@ const STEPS = [
   { key: 'mood', label: 'Mood (0–10)', required: true },
   { key: 'focusClarity', label: 'Focus Clarity (0–10)', required: true },
   { key: 'stress', label: 'Stress (0–10)', required: true },
-  { key: 'context', label: 'Context (optional)', required: false }
+  { key: 'context', label: 'Context (optional)', required: false },
+  { key: 'vitals', label: 'Daily Vitals (optional)', required: false },
 ];
 
 export default function PhysioForm({ onSuccess }: PhysioFormProps) {
@@ -33,13 +34,32 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
   const [caffeineLastTime, setCaffeineLastTime] = useState<string>('');
   const [bedTime, setBedTime] = useState<string>('');
   const [wakeTime, setWakeTime] = useState<string>('');
+  const [dayTags, setDayTags] = useState<string[]>([]);
+  const [dayNotes, setDayNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const supabase = createSupabaseBrowserClient();
+
+  const AVAILABLE_DAY_TAGS = [
+    'partner_sleepover',
+    'travel_day',
+    'sick',
+    'hangover',
+    'big_shooting_day',
+    'heavy_conflict',
+    'social_overload',
+    'social_recharge',
+  ] as const;
+
+  function humanizeTag(tag: string): string {
+    return tag
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
     const loadExistingLog = async () => {
       try {
         const { data: sessionRes } = await supabase.auth.getSession();
@@ -110,7 +130,21 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
     setError(null);
 
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      let caffeineLastIso: string | undefined;
+      if (caffeineLastTime) {
+        const [hours, minutes] = caffeineLastTime.split(':').map(Number);
+        const dt = new Date(now);
+        dt.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+        caffeineLastIso = dt.toISOString();
+      }
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user) {
+        setError('Please sign in to save your physio log.');
+        setLoading(false);
+        return;
+      }
       const payload: PhysioLogInput = {
         date: today,
         energy,
@@ -118,17 +152,19 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
         focus_clarity: focusClarity,
         stress,
         context: context.trim() || undefined,
+        user_id: userRes.user.id,
         sleep_hours: sleepHours ?? undefined,
         sleep_quality: sleepQuality ?? undefined,
         resting_hr: restingHr ?? undefined,
         hrv_score: hrvScore ?? undefined,
         caffeine_total_mg: caffeineTotal ?? undefined,
-        caffeine_last_intake_time: caffeineLastTime || undefined,
+        caffeine_last_intake_time: caffeineLastIso,
         bed_time: bedTime || undefined,
         wake_time: wakeTime || undefined,
+        day_tags: dayTags.length > 0 ? dayTags : undefined,
+        day_notes: dayNotes.trim() || undefined,
       };
 
-      const supabase = createSupabaseBrowserClient();
       await upsertPhysioLog(supabase, payload);
 
       onSuccess?.();
@@ -176,7 +212,14 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
             maxLength={50}
           />
           <p className="text-xs text-gray-500 dark:text-gray-400">1-2 words to describe your day</p>
+        </div>
+      );
+    }
 
+    if (currentStep.key === 'vitals') {
+      return (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">Optional: log your sleep and caffeine for today.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Sleep Hours</label>
@@ -191,26 +234,57 @@ export default function PhysioForm({ onSuccess }: PhysioFormProps) {
               <input type="number" value={restingHr ?? ''} onChange={(e) => setRestingHr(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">HRV Score</label>
-              <input type="number" value={hrvScore ?? ''} onChange={(e) => setHrvScore(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">HRV Score (0–100)</label>
+              <input type="number" min={0} max={100} value={hrvScore ?? ''} onChange={(e) => setHrvScore(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Caffeine Total (mg)</label>
-              <input type="number" step="1" value={caffeineTotal ?? ''} onChange={(e) => setCaffeineTotal(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+              <input type="number" step={1} value={caffeineTotal ?? ''} onChange={(e) => setCaffeineTotal(e.target.value ? parseInt(e.target.value, 10) : null)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Last Caffeine Time</label>
-              <input type="datetime-local" value={caffeineLastTime} onChange={(e) => setCaffeineLastTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Bed Time</label>
-              <input type="datetime-local" value={bedTime} onChange={(e) => setBedTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Wake Time</label>
-              <input type="datetime-local" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
+              <input type="time" value={caffeineLastTime} onChange={(e) => setCaffeineLastTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-black dark:text-white dark:border-gray-600" />
             </div>
           </div>
+          <section className="mt-6">
+            <h3 className="text-sm font-medium mb-2 dark:text-gray-200">Day context (optional)</h3>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mb-2">
+              Tag anything unusual about today so it can be considered in your insights later.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {AVAILABLE_DAY_TAGS.map((tag) => {
+                const selected = dayTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setDayTags((prev) =>
+                        prev.includes(tag)
+                          ? prev.filter((t) => t !== tag)
+                          : [...prev, tag]
+                      );
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs border ${
+                      selected
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-transparent text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700'
+                    }`}
+                  >
+                    {humanizeTag(tag)}
+                  </button>
+                );
+              })}
+            </div>
+            <label className="block text-xs font-medium mb-1 dark:text-gray-200">Day notes (optional)</label>
+            <textarea
+              className="w-full rounded-md border bg-white px-3 py-2 text-sm dark:bg-black dark:text-gray-200 dark:border-gray-700"
+              rows={2}
+              value={dayNotes}
+              onChange={(e) => setDayNotes(e.target.value)}
+              placeholder="Anything special about today? (e.g. argument, amazing win, weird schedule)"
+            />
+          </section>
         </div>
       );
     }

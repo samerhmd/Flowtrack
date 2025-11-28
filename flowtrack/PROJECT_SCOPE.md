@@ -8,21 +8,46 @@
 ## Architecture
 - App Router pages (server/client components as noted):
   - `/` → redirects to `/dashboard` (server component)
-  - `/dashboard` (server): aggregates today and last 7 days stats via Supabase
+  - `/dashboard` (client): loads auth and aggregates today/last 7 days via browser Supabase client
   - `/physio/new` (client): Typeform-style daily physio wizard
-  - `/sessions` (server): list view of sessions
+  - `/sessions` (client): list view of sessions
   - `/sessions/new` (client): session wizard (pre → in → post)
   - `/flow-recipe` (server + client): initial fetch server-side, client component for CRUD
+  - `/physio/history` (server): list of past physio logs (last ~90 days)
+  - `/physio/history/[date]` (client): edit a specific day’s physio
+  - `/sessions/[id]/edit` (client): edit a specific session
+  - `/today` (server): daily command center showing today’s physio snapshot, sleep/caffeine/water totals, quick log actions, and today’s sessions
 - API Routes (server-only):
-  - `POST /api/physio/upsert` → upserts the daily physio log using service role
-  - `POST /api/sessions/create` → creates a session row using service role
-  - `POST /api/admin/seed-user` → optional admin seeding endpoint to create/confirm a user
+  - `POST /api/physio/upsert` → legacy/dev-only; normal UI flows use client helpers with RLS
+  - `POST /api/sessions/create` → legacy/dev-only; normal UI flows use client helpers with RLS
+  - `POST /api/admin/seed-user` → admin-only endpoint to create/confirm a user
 - Supabase Clients:
-  - `lib/supabaseClient.ts` → browser client created with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - `lib/supabaseServer.ts` → server client created with the same public envs for typical server-side reads (no auth helpers)
+  - `lib/supabaseClient.ts` → browser client via `@supabase/ssr` `createBrowserClient(url, anonKey)`
+  - `lib/supabaseServer.ts` → server client via `@supabase/ssr` `createServerClient(url, anonKey, { cookies })`
 - DB Helpers (`lib/db/*`): typed interfaces + minimal functions to select/insert/update, used by components/pages.
 
 ## Data Model (Supabase Postgres)
+### caffeine_events
+- Columns:
+  - `id uuid primary key default gen_random_uuid()`
+  - `user_id uuid not null references auth.users(id) on delete cascade default auth.uid()`
+  - `created_at timestamptz not null default now()`
+  - `event_time timestamptz not null default now()`
+  - `date date not null default now()::date`
+  - `mg numeric not null`
+  - `source text`
+  - `label text`
+  - `session_id uuid references public.sessions(id) on delete set null`
+
+### water_events
+- Columns:
+  - `id uuid primary key default gen_random_uuid()`
+  - `user_id uuid not null references auth.users(id) on delete cascade default auth.uid()`
+  - `created_at timestamptz not null default now()`
+  - `event_time timestamptz not null default now()`
+  - `date date not null default now()::date`
+  - `ml int not null`
+  - `source text`
 ### physio_logs
 - Columns:
   - `id uuid primary key default gen_random_uuid()`
@@ -34,6 +59,8 @@
   - `focus_clarity int check (focus_clarity between 0 and 10)`
   - `stress int check (stress between 0 and 10)`
   - `context text`
+  - `day_tags text[]`
+  - `day_notes text`
   - Unique: `(user_id, date)`
 
 ### sessions
@@ -65,6 +92,10 @@
 - Users can only read/write rows where `user_id = auth.uid()`.
 - Note: client-side writes can be blocked by RLS if update/insert policies are incomplete; server routes use the service role to perform writes safely.
 
+### Logging Primitives
+- Caffeine and water are logged as discrete events per timestamp.
+- Daily totals for caffeine and water will be derived later.
+
 ## Environment Variables
 - Required (local + Vercel):
   - `NEXT_PUBLIC_SUPABASE_URL` → Supabase project URL
@@ -83,11 +114,13 @@
 ## Frontend Features
 ### Daily Physio Wizard (`components/physio/PhysioForm.tsx`)
 - Steps: Energy → Mood → Focus Clarity → Stress → Context (optional)
+- Adds Daily Vitals step (optional): sleep hours, sleep quality, resting HR, HRV score, caffeine total (mg), last caffeine time
+- Day context step with optional anomaly tags (partner_sleepover, travel_day, sick, etc.) and a short free-text day_notes field.
 - Today’s date: `new Date().toISOString().slice(0,10)`
 - Validates 0–10 for required fields, context trimmed
 - Save flow:
-  - Calls `POST /api/physio/upsert` with payload and `Authorization: Bearer <access_token>`
-  - Server route uses service role and upserts with `{ onConflict: 'user_id,date' }`
+  - Calls `upsertPhysioLog(supabase, input)` via the browser Supabase client
+  - RLS insert/update policies enforce `user_id = auth.uid()` with `{ onConflict: 'user_id,date' }`
 - Behavior: starts fresh (no prefill)
 - Styling: dark-mode readable (labels, inputs, buttons)
 
@@ -96,26 +129,41 @@
 - Computes `duration_seconds` from start/end
 - Derives `date` from `start_time`
 - Save flow:
-  - Calls `POST /api/sessions/create` with payload and `Authorization: Bearer <access_token>`
-  - Server route uses service role to insert row (bypasses RLS)
+  - Calls `createSession(supabase, input)` via the browser Supabase client
+  - RLS insert policies enforce `user_id = auth.uid()` for writes
 - Styling: dark-mode readable throughout (labels, text, panels, inputs)
 
 ### Flow Recipe (`app/flow-recipe/page.tsx` + `components/recipe/FlowRecipeView.tsx`)
-- Server fetch initial items, client manages local state
-- CRUD actions use `lib/db/flowRecipe.ts` helpers (client-side). If RLS blocks updates, consider moving writes behind a server route similarly to physio/sessions.
+- Server fetch initial items (page flagged dynamic due to cookies); client manages local state
+- All writes use `lib/db/flowRecipe.ts` helpers with a session-bound client (RLS-first)
 - Inline form for Add/Edit/Delete with basic error messages
 
 ### Dashboard (`app/dashboard/page.tsx`)
-- Server-side aggregation via `lib/db/dashboard.ts` using Supabase direct selects:
+- Client-side aggregation via `lib/db/dashboard.ts` using browser Supabase client:
   - `todayPhysio`: maybeSingle on `physio_logs` for today
   - `todaySessions`: sessions with `date = today`
   - `last7Days`: sessions in `[today-6, today]`, returns `sessionCount` and `avgFlow`
 - Dark-mode contrast on headings and stats
+- Quick actions:
+  - `CaffeineQuickLog` for event-based caffeine logging
+  - `WaterQuickLog` for event-based water logging
+ - Dashboard provides Quick Actions: log physio, start session, quick caffeine logging, and quick water logging.
 
 ### Sessions List (`app/sessions/page.tsx` + `components/sessions/SessionCard.tsx`)
-- Fetch recent sessions via `getSessions`
-- Empty state CTA, cards show date, activity, duration, flow rating
+- Client-side fetch recent sessions via `getSessions`; empty state CTA
+- Cards show date, activity, duration, flow rating; dark-mode contrast
 - Dark-mode contrast on text + cards
+- Each card links to `/sessions/[id]/edit` for quick edits
+
+### Insights (`app/insights/page.tsx`)
+- Server component using auth-aware server client; last ~60 days
+- Joins sessions with physio_logs by date and computes:
+  - Sleep hours buckets (<6h, 6–7h, 7–8h, 8+)
+  - Caffeine buckets (0, 1–100, 101–200, 200+ mg)
+  - Environment groups (home, office, cafe, other, unknown)
+  - Time of day (morning, afternoon, evening)
+- Renders lists sorted by average flow with counts; handles empty states
+ - Supports date range filters (7/30/90 days) and the ability to exclude sick days and partner_sleepover days from the charts
 
 ## API Routes (server-only)
 ### POST `/api/physio/upsert`
@@ -198,19 +246,22 @@
 - Seed admin user (optional): `POST http://localhost:3000/api/admin/seed-user`
 
 ## Error Handling & Common Issues
-- RLS errors (`code 42501`) on client-side writes indicate missing policies; use the server API routes with the service role to write.
+- RLS errors (`code 42501`) on client-side writes usually mean insert/update policies are missing or misconfigured. Fix RLS policies (e.g., `user_id = auth.uid()`) rather than bypassing them; service-role endpoints are for admin/maintenance only.
 - “Missing Supabase envs” from server routes: ensure `SUPABASE_SERVICE_ROLE_KEY` and URL envs are present; restart dev.
 - Turbopack dev logs `net::ERR_ABORTED ...?_rsc=...` are HMR navigation aborts; harmless in dev.
 
 ## Known Limitations / Next Steps
-- Flow Recipe CRUD currently uses client helpers; consider server routes with service role for consistent RLS behavior.
+- Flow Recipe CRUD uses client helpers with RLS; future server-side helpers may support batch ops, but standard user writes remain session-bound.
 - Add session/physio history views and editing.
+- Filters on history pages (by date range, flow rating, environment).
+- Weekly Review page summarizing last 7 days using insights.
 - Add robust auth (email confirmations, OAuth) and a dedicated login page.
 - Add tests and monitoring.
 
 ## Security Notes
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
-- RLS is enforced in Postgres; server routes use service role only on the server.
+- Normal app flows do not use the service role; it is only used in rare admin endpoints.
+- RLS is enforced in Postgres; server routes with service role are admin-only.
 
 ## Quick Data Payloads
 ### Physio payload
