@@ -152,6 +152,31 @@ function selectDateKey(row: Record<string, string>): string | null {
 export function parseGarminSleep(csvText: string): Map<string, Partial<GarminDailySnapshot>> {
   const map = new Map<string, Partial<GarminDailySnapshot>>()
   const rows = parseSimpleCsv(csvText)
+  const parseDurationToMinutes = (raw: string | undefined): number | null => {
+    const val = (raw ?? '').trim()
+    if (!val) return null
+    if (/^\d+(\.\d+)?$/.test(val)) {
+      const secs = Number(val)
+      if (!Number.isFinite(secs)) return null
+      return Math.round(secs / 60)
+    }
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(val)) {
+      const parts = val.split(':').map(Number)
+      const sec = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1]
+      return Math.round(sec / 60)
+    }
+    const hoursMatch = val.match(/(\d+(?:\.\d+)?)\s*h/i)
+    if (hoursMatch) {
+      const h = Number(hoursMatch[1])
+      if (Number.isFinite(h)) return Math.round(h * 60)
+    }
+    const minutesMatch = val.match(/(\d+(?:\.\d+)?)\s*min/i)
+    if (minutesMatch) {
+      const m = Number(minutesMatch[1])
+      if (Number.isFinite(m)) return Math.round(m)
+    }
+    return null
+  }
   for (const r of rows) {
     const dateKey = selectDateKey(r)
     if (!dateKey) continue
@@ -159,19 +184,27 @@ export function parseGarminSleep(csvText: string): Map<string, Partial<GarminDai
     if (!iso) continue
     const keys = Object.keys(r)
     const lkeys = keys.map(k => k.toLowerCase())
-    const durKey = keys.find(k => k.includes('duration') && (k.includes('sleep') || k.includes('minute') || k.includes('second')))
-    const scoreKey = keys.find(k => k.includes('sleep') && k.includes('score')) ?? keys.find(k => k.includes('score'))
-    let sleepMin: number | null = null
-    const rawDur = durKey ? r[durKey] : ''
-    if (rawDur) {
-      if (/^\d+(\.\d+)?$/.test(rawDur)) {
-        sleepMin = Math.round(Number(rawDur) / 60)
-      } else if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(rawDur)) {
-        const parts = rawDur.split(':').map(Number)
-        const sec = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1]
-        sleepMin = Math.round(sec / 60)
-      }
+    const durationCandidates = [
+      'sleep duration',
+      'total sleep time',
+      'time asleep',
+      'duration',
+      'asleep time',
+      'minutes asleep',
+      'hours asleep',
+    ]
+    let durKey: string | undefined
+    for (const cand of durationCandidates) {
+      const idx = lkeys.findIndex(k => k.includes(cand))
+      if (idx >= 0) { durKey = keys[idx]; break }
     }
+    if (!durKey) {
+      const hasSleepKey = lkeys.some(k => k.includes('sleep'))
+      const idx2 = hasSleepKey ? lkeys.findIndex(k => k.includes('duration') || k.includes('minutes')) : -1
+      if (idx2 >= 0) durKey = keys[idx2]
+    }
+    const sleepMin = parseDurationToMinutes(durKey ? r[durKey] : undefined)
+    const scoreKey = keys.find(k => k.includes('sleep') && k.includes('score')) ?? keys.find(k => k.includes('score'))
     const scoreVal = scoreKey ? Number(r[scoreKey]) : NaN
     const sleepScore = isNaN(scoreVal) ? null : scoreVal
     const cur = map.get(iso) || {}

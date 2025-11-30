@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [data, setData] = useState<any>(null);
+  const [navLock, setNavLock] = useState(false);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -152,7 +153,19 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="mt-4">
-            <Link href="/sessions" prefetch={false} className="text-sm text-blue-600 hover:underline">
+            <Link
+              href="/sessions"
+              prefetch={false}
+              className="text-sm text-blue-600 hover:underline"
+              onClick={(e) => {
+                if (navLock) {
+                  e.preventDefault();
+                  return;
+                }
+                setNavLock(true);
+                setTimeout(() => setNavLock(false), 1200);
+              }}
+            >
               View sessions →
             </Link>
           </div>

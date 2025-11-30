@@ -118,24 +118,29 @@ export async function getDailyInsightsData(
 
     const ext = externalByDate.get(dateStr)
     if (ext) {
-      row.sleep_hours = row.sleep_hours != null && !Number.isNaN(row.sleep_hours)
+      const extSleep = ext.sleep_hours != null ? Number(ext.sleep_hours) : null
+      const extSleepQuality = ext.sleep_quality != null ? Number(ext.sleep_quality) : null
+      const extRest = ext.resting_hr != null ? Number(ext.resting_hr) : null
+      const extHrv = ext.hrv_score != null ? Number(ext.hrv_score) : null
+      row.sleep_hours = row.sleep_hours != null && !Number.isNaN(row.sleep_hours as number)
         ? row.sleep_hours
-        : (ext.sleep_hours ?? row.sleep_hours ?? null)
-      row.sleep_quality = row.sleep_quality != null && !Number.isNaN(row.sleep_quality)
+        : (extSleep ?? row.sleep_hours ?? null)
+      row.sleep_quality = row.sleep_quality != null && !Number.isNaN(row.sleep_quality as number)
         ? row.sleep_quality
-        : (ext.sleep_quality ?? row.sleep_quality ?? null)
-      row.resting_hr = ext.resting_hr ?? row.resting_hr ?? null
-      row.hrv_score = row.hrv_score != null && !Number.isNaN(row.hrv_score)
+        : (extSleepQuality ?? row.sleep_quality ?? null)
+      row.resting_hr = extRest ?? row.resting_hr ?? null
+      row.hrv_score = row.hrv_score != null && !Number.isNaN(row.hrv_score as number)
         ? row.hrv_score
-        : (ext.hrv_score ?? row.hrv_score ?? null)
+        : (extHrv ?? row.hrv_score ?? null)
       const tm = (ext as any)?.training_minutes ?? (ext as any)?.raw_payload?.training_minutes ?? null
       row.training_minutes = tm ?? row.training_minutes ?? null
     }
 
     // Build merged fields used by UI (physio first, then external fallback)
-    row.merged_sleep_hours = row.sleep_hours != null && !Number.isNaN(row.sleep_hours)
+    const mergedExtSleep = ext?.sleep_hours != null ? Number(ext.sleep_hours) : null
+    row.merged_sleep_hours = row.sleep_hours != null && !Number.isNaN(row.sleep_hours as number)
       ? row.sleep_hours
-      : (ext?.sleep_hours ?? null)
+      : mergedExtSleep
     row.merged_hrv_score = row.hrv_score != null && !Number.isNaN(row.hrv_score)
       ? row.hrv_score
       : (ext?.hrv_score ?? null)
