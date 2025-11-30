@@ -24,6 +24,7 @@ export interface ExternalDailySnapshot {
 export interface UpsertExternalDailySnapshotInput {
   provider: ExternalProvider
   date: string
+  user_id?: string
   sleep_hours?: number | null
   sleep_quality?: number | null
   resting_hr?: number | null
@@ -46,6 +47,7 @@ export async function upsertExternalDailySnapshot(
       {
         provider: input.provider,
         date: input.date,
+        user_id: input.user_id ?? undefined,
         sleep_hours: input.sleep_hours ?? null,
         sleep_quality: input.sleep_quality ?? null,
         resting_hr: input.resting_hr ?? null,

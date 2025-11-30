@@ -1,0 +1,339 @@
+# Project Scope — Full Architecture, Logic, and Data Flow
+
+## 1. Project Overview
+- FlowTrack is a personal productivity and well-being tracker. It records daily physio snapshots (energy, mood, focus, stress, sleep/caffeine context), deep-work sessions with flow ratings, and a configurable “flow recipe” of practices. It provides a dashboard, insights, and pages to log and review data.
+- Core mission: help a user understand how sleep, caffeine, environment, and context correlate with their subjective flow state; support logging and quick actions to reduce friction.
+- Audience: individual users tracking their daily vitals and work sessions. Authentication and data isolation are enforced via Supabase Row Level Security (RLS).
+
+## 2. System Architecture Summary
+- High-level architecture: Next.js 16 App Router, React components (server and client), Tailwind CSS for styling, Supabase for Postgres, auth, and RLS. No backend framework outside Next’s route handlers; DB access through Supabase JS clients.
+- Internal subsystems:
+  - Auth: Supabase auth via browser client; server-side reads use cookie-bound Supabase server client where needed.
+  - Physio logging: multi-step client wizard for energy/mood/focus/stress and optional vitals.
+  - Sessions: session creation and listing; edit via dynamic route.
+  - Flow Recipe: server-side fetch of recipe items, client component for CRUD.
+  - Dashboard: aggregates today and last 7 days with quick actions for physio/session; now includes caffeine/water quick logging.
+  - Insights: server-rendered page summarizing correlations; currently a text-based primitive with color/contrast fixes; time-series charts and toggles are not yet implemented in code.
+  - API routes: legacy/admin endpoints using service role for privileged operations.
+- Folder structure & conventions:
+  - `flowtrack/app`: App Router pages, server/client components (`layout.tsx`, route directories like `/dashboard`, `/insights`, `/physio`, `/sessions`, `/flow-recipe`, `/api/...`).
+  - `flowtrack/components`: React components for wizards, recipe view, logging, UI.
+  - `flowtrack/lib/db`: typed DB helper modules; each exposes typed interfaces and minimal query functions.
+  - `flowtrack/lib`: Supabase client helpers for browser/server; other utilities.
+  - `supabase/migrations`: SQL migrations applied to the remote Supabase project.
+  - Tailwind classes inline; dark-mode coverage across components.
+- Core components:
+  - Server pages: `app/flow-recipe/page.tsx`, `app/physio/history/page.tsx`, `app/insights/page.tsx`.
+  - Client pages: `app/dashboard/page.tsx`, `app/sessions/page.tsx`, `app/sessions/new/page.tsx`, `app/sessions/[id]/edit/page.tsx`, `app/physio/new/page.tsx`, `app/login/page.tsx`.
+  - DB helpers: `lib/db/physio.ts`, `lib/db/sessions.ts` (in scope doc), `lib/db/flowRecipe.ts`, `lib/db/dashboard.ts`, `lib/db/caffeine.ts`, `lib/db/water.ts`.
+  - Supabase clients: `lib/supabaseClient.ts` (browser), `lib/supabaseServer.ts` (server).
+  - Logging components: `components/logging/CaffeineQuickLog.tsx`, `components/logging/WaterQuickLog.tsx`.
+- External dependencies:
+  - Supabase JS (`@supabase/supabase-js`) and Supabase SSR helpers (`@supabase/ssr`).
+  - Next.js 16, React, Tailwind CSS.
+  - Recharts is not currently in `package.json`; charting not yet implemented.
+- Business logic placement:
+  - Business rules enforced primarily at DB layer via RLS and constraints.
+  - Thin typed helpers in `lib/db/*` for queries; client components implement UI and input normalization.
+- Key architectural decisions:
+  - RLS-first: client-side writes rely on Supabase policies; admin/service-role endpoints only for maintenance.
+  - App Router with mixed server/client components; sensitive operations avoid cookie writes during server render.
+  - Minimal server APIs; prefer direct Supabase client interactions from the browser for user-scoped data.
+
+## 3. Data Model & Database Schema
+- Tables (public schema):
+  - `physio_logs`
+    - Purpose: per-user daily snapshot of physio metrics and context.
+    - Fields: `id uuid pk default gen_random_uuid()`, `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`, `created_at timestamptz default now()`, `date date not null`, `energy int check 0..10`, `mood int check 0..10`, `focus_clarity int check 0..10`, `stress int check 0..10`, `context text`, `sleep_hours numeric`, `sleep_quality int`, `resting_hr int`, `hrv_score int`, `caffeine_total_mg numeric`, `caffeine_last_intake_time timestamptz`, `bed_time timestamptz`, `wake_time timestamptz`, `day_tags text[]`, `day_notes text`.
+    - Relationships: `user_id → auth.users(id)`.
+    - Keys: unique constraint implied by upsert conflict target `(user_id, date)` (enforced in application; an explicit unique index is recommended).
+    - RLS: enabled; users read/write only their rows (policies exist elsewhere in project).
+    - Workflow: created/updated by PhysioForm and history views; inputs validated client-side; server policies enforce ownership.
+  - `sessions`
+    - Purpose: record deep-work sessions with time bounds and flow rating.
+    - Fields: `id uuid pk default gen_random_uuid()`, `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`, `created_at timestamptz default now()`, `flow_recipe_version int`, `date date not null`, `start_time timestamptz not null`, `end_time timestamptz not null`, `duration_seconds int not null`, `activity text`, `flow_rating int check 0..10`, `notes text`, `environment text`, `noise text`, `session_type text` (in code types usage).
+    - Relationships: `user_id → auth.users(id)`.
+    - Indexes: not explicitly defined; consider adding on `(user_id, date)` for dashboard/insights queries.
+    - RLS: enabled; user-owned reads/writes.
+    - Workflow: created via session wizard or legacy API; listed and edited through UI.
+  - `flow_recipe_items`
+    - Purpose: ordered list of practices/steps composing the user’s flow recipe.
+    - Fields: `id uuid pk default gen_random_uuid()`, `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`, `created_at timestamptz default now()`, `updated_at timestamptz default now()`, `title text not null`, `notes text not null`, `order_index int default 0`.
+    - RLS: enabled; user-owned rows.
+    - Workflow: server-fetch in page, client-side CRUD in `FlowRecipeView`.
+  - `caffeine_events` (added)
+    - Purpose: event-based granular logging of caffeine intake doses.
+    - Fields: `id uuid pk default gen_random_uuid()`, `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`, `created_at timestamptz default now()`, `event_time timestamptz not null default now()`, `date date not null default now()::date`, `mg numeric not null`, `source text`, `label text`, `session_id uuid references public.sessions(id) on delete set null`.
+    - RLS: enabled; policies created for select/insert/update/delete with `auth.uid() = user_id`.
+    - Workflow: created via `CaffeineQuickLog` using browser Supabase client.
+  - `water_events` (added)
+    - Purpose: event-based granular logging of water intake.
+    - Fields: `id uuid pk default gen_random_uuid()`, `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`, `created_at timestamptz default now()`, `event_time timestamptz not null default now()`, `date date not null default now()::date`, `ml int not null`, `source text`.
+    - RLS: enabled; policies mirror caffeine_events.
+    - Workflow: created via `WaterQuickLog` using browser Supabase client.
+- ERD Summary (text-based):
+  - `auth.users (id)` 1—N `physio_logs (user_id)`
+  - `auth.users (id)` 1—N `sessions (user_id)`
+  - `auth.users (id)` 1—N `flow_recipe_items (user_id)`
+  - `auth.users (id)` 1—N `caffeine_events (user_id)`
+  - `auth.users (id)` 1—N `water_events (user_id)`
+  - `sessions (id)` 1—N `caffeine_events (session_id)` nullable association
+  - Domain boundaries: user-owned journaling domain (physio/sessions/recipe) with event logging subdomain (caffeine/water). No cross-user relations.
+
+## 4. Domain Logic & Workflows
+- Daily Physio
+  - Flow description:
+    - Wizard steps for energy/mood/focus/stress (0–10), optional context string, optional daily vitals (sleep hours/quality, resting HR, HRV, caffeine totals, last intake time, bed/wake times), and new day context tags/notes.
+    - Submission upserts by user/date (conflict target `(user_id, date)`).
+  - Data lifecycle:
+    - Reads: optional check existing physio by date without prefill.
+    - Writes: `physio_logs` upsert with fields; `day_tags`/`day_notes` now included.
+  - State transitions:
+    - Client-local state step progression; server-side record either created or updated.
+  - Event triggers:
+    - Auth state changes re-check; submission triggers DB write via Supabase client.
+- Sessions
+  - Flow description:
+    - Create session with start/end and flow rating; list and edit session details.
+  - Data lifecycle:
+    - Writes to `sessions`; reads by date for dashboard/insights.
+  - State transitions:
+    - Duration computed client-side; session recorded; edits update fields.
+  - Event triggers:
+    - Button actions in dashboard/session wizard.
+- Flow Recipe
+  - Flow description:
+    - Server fetch of recipe items for initial render; client CRUD for items.
+  - Data lifecycle:
+    - Reads from `flow_recipe_items`; writes via helper functions with RLS.
+- Dashboard
+  - Flow description:
+    - Shows today’s physio and sessions, last 7-day summary; includes Quick Actions section with buttons and quick logging cards.
+  - Data lifecycle:
+    - Reads `physio_logs` and `sessions` (today and 7-day range); writes via quick logging components to `caffeine_events` and `water_events`.
+  - Event triggers:
+    - On mount: `supabase.auth.getSession()`; fetch aggregates if authenticated.
+- Insights
+  - Flow description:
+    - Primitive server-rendered correlations: sleep/caffeine buckets vs flow, environment vs flow, time-of-day vs flow (last ~60 days).
+  - Data lifecycle:
+    - Reads from `sessions` and `physio_logs` joined in memory.
+  - Event triggers:
+    - Page load; no interactive charting currently implemented.
+- Authentication & permissions
+  - Flow description:
+    - Inline sign-in component for gated pages; browser Supabase client used for session retrieval.
+  - Data lifecycle:
+    - Supabase auth tokens; RLS ensures DB isolation.
+- API endpoints (legacy/admin)
+  - `POST /api/physio/upsert`: upserts physio log using service role (authorization header bearer token required).
+  - `POST /api/sessions/create`: inserts session using service role (authorization header).
+  - `POST /api/admin/seed-user`: creates/updates admin user using service role.
+
+## 5. Code Architecture by Module
+- Auth
+  - `components/auth/SignInInline.tsx`: inline login form; calls Supabase auth functions (sign up/sign in).
+  - Browser client: `lib/supabaseClient.ts:6-15` returns a singleton Supabase browser client.
+- Supabase server client
+  - `lib/supabaseServer.ts`: async server client using `@supabase/ssr` with `cookies()` unwrapped; cookie get wired, set/remove are no-ops during RSC rendering to avoid dynamic API misuse.
+- Physio
+  - Controllers/pages:
+    - `app/physio/new/page.tsx`: renders `PhysioForm`.
+    - `app/physio/history/page.tsx:5-45` server lists last ~90 days; links to per-day edit route.
+    - `app/physio/history/[date]/page.tsx`: per-day client edit (not shown here).
+  - Components:
+    - `components/physio/PhysioForm.tsx:1-326` multi-step wizard; includes day context tags/notes section; constructs `PhysioLogInput` and upserts via helper.
+  - DB helpers:
+    - `lib/db/physio.ts:1-158` typed interfaces (`PhysioLog`, `PhysioLogInput`, `PhysioLogUpdateInput`), functions `getPhysioLogForDate`, `upsertPhysioLog`, `getPhysioLogsRange`, `updatePhysioLogForDate`.
+  - Inputs/outputs:
+    - Inputs: wizard state; outputs: row upserted; side effects: Supabase writes.
+  - Known issues:
+    - No server-side validation beyond DB constraints; missing explicit unique index `(user_id, date)`.
+- Sessions
+  - Controllers/pages:
+    - `app/sessions/page.tsx`: sessions listing (client).
+    - `app/sessions/new/page.tsx`: wizard to create session.
+    - `app/sessions/[id]/edit/page.tsx`: edit session.
+  - Components:
+    - `components/sessions/SessionWizard.tsx`: phases and client save.
+    - `components/sessions/SessionCard.tsx`: card render for listing.
+  - DB helpers:
+    - `lib/db/sessions.ts` (in scope doc; actual file exists in project).
+  - Known issues:
+    - Environment/noise/session_type present in types; ensure schema matches queries.
+- Flow Recipe
+  - Controllers/pages:
+    - `app/flow-recipe/page.tsx:1-11` server page flagged dynamic; creates Supabase client (public anon) and fetches items; renders `FlowRecipeView`.
+  - Components:
+    - `components/recipe/FlowRecipeView.tsx` client component for CRUD (file exists; exact mapping not shown here).
+  - DB helpers:
+    - `lib/db/flowRecipe.ts:1-100` typed CRUD functions for `flow_recipe_items`.
+  - Known issues:
+    - Server client previously attempted cookies synchronously; fixed by avoiding `cookies().get` misuse and using anon client for read-only.
+- Dashboard
+  - Controllers/pages:
+    - `app/dashboard/page.tsx:1-174` client page; loads session, aggregates via `getDashboardData`, renders summary and quick actions (buttons + quick logging).
+  - DB helpers:
+    - `lib/db/dashboard.ts`: aggregates for today/last 7 days.
+  - Quick logging:
+    - `components/logging/CaffeineQuickLog.tsx`: presets 50/100/200 mg; sources chips; calls `createCaffeineEvent`.
+    - `components/logging/WaterQuickLog.tsx`: presets 250/500/750/1000 ml; sources chips; calls `createWaterEvent`.
+  - Known issues:
+    - `getSession()` failures during dev network suspension handled via try/catch to avoid overlay errors.
+- Insights
+  - Controllers/pages:
+    - `app/insights/page.tsx:1-178` server-rendered; computes correlations; fixed contrast in caffeine section.
+  - Future (documented but not implemented): `lib/db/insights.ts` and `components/insights/InsightsView.tsx` with Recharts.
+- API routes
+  - `app/api/physio/upsert/route.ts`: POST upsert physio using service role; expects bearer token.
+  - `app/api/sessions/create/route.ts`: POST create session using service role.
+  - `app/api/admin/seed-user/route.ts`: POST seed or update admin user via `auth.admin` methods.
+- Configurations
+  - `next.config.ts`: default config skeleton.
+  - `.env.local`: Supabase URL/keys; see Environment section.
+
+## 6. Reporting Architecture (ETL + Analytics)
+- ETL jobs: none implemented; analytics computed on demand in server/client code.
+- Reporting tables: none; all queries hit source tables (`sessions`, `physio_logs`).
+- Sources of truth: Postgres tables with RLS enforcing ownership.
+- Caching: none configured; consider ISR or caching for charts if needed.
+- Scheduling/backfill: none.
+- Correctness & idempotency: insert/upsert functions are straightforward; upsert for physio ensures one row per day per user.
+- Risks: heavy on-demand computation in insights; may need indexing and caching when scaling.
+
+## 7. API Endpoints & External Interfaces
+- `POST /api/physio/upsert`
+  - Purpose: admin/service role upsert of physio logs (legacy/dev).
+  - Permissions: `Authorization: Bearer <access_token>` used to identify user; server uses service role key.
+  - Input: JSON body with date and metrics.
+  - Response: single upserted row.
+  - Dependencies: Supabase service client.
+  - Consumer: admin tooling/dev scripts.
+- `POST /api/sessions/create`
+  - Purpose: admin/service role insert of session.
+  - Permissions: bearer auth.
+  - Input: session fields including date/time/duration/flow.
+  - Response: inserted row.
+  - Dependencies: Supabase service client.
+- `POST /api/admin/seed-user`
+  - Purpose: seed/update admin user.
+  - Permissions: service role key.
+  - Input: optional email/password.
+  - Response: user created/updated.
+- Webhooks/integrations: none present.
+
+## 8. Security Model
+- Authentication: Supabase auth via browser client; server-side reads use cookie-bound SSR client where applicable.
+- Authorization: enforced by RLS at table level; users read/write only rows where `user_id = auth.uid()`.
+- Sensitive routes: admin API routes require service role; must never expose `SUPABASE_SERVICE_ROLE_KEY` client-side.
+- Data exposure: only via client queries with session; server-only routes use service role.
+- Rate limiting/CSRF: none explicitly implemented.
+- Session security: Supabase manages tokens/cookies; server components avoid mutating cookies during render.
+- Module access controls: enforced by RLS; UI gates features behind `auth.getSession()`.
+- Health endpoints: none implemented.
+
+## 9. Background Jobs & Queueing
+- Job types: none.
+- Queues: none.
+- Retries & failures: N/A.
+- Observability/logging: console logging in client/server; no centralized logging stack.
+- Scheduling/Cron: none.
+
+## 10. Testing Overview
+- Unit/feature/smoke tests: none present in this Next.js codebase.
+- Factories/seeders: N/A.
+- Coverage: N/A.
+- Missing tests:
+  - DB helpers (`physio`, `sessions`, `flowRecipe`, `dashboard`, `caffeine`, `water`).
+  - Page/component integration flows.
+  - RLS behavior (can be tested via Supabase test harness).
+- Risky areas:
+  - Insights computations on server.
+  - Quick logging components input validation.
+  - Admin API routes using service role.
+
+## 11. Operational & DevOps Considerations
+- Environment configs:
+  - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` required for browser client.
+  - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` used by API routes and as fallback in server contexts.
+- Deployment: Vercel
+  - Root directory: `flowtrack`
+  - Build command: `npm run build`
+  - Output directory: `.next`
+  - Env vars must be set in Vercel for production and preview.
+- Production vs staging: not specified; both rely on Supabase project configuration.
+- Backups: use Supabase project backups; not configured in code.
+- Monitoring: none integrated.
+- Health endpoint: none; consider adding.
+- Logging strategy: console logs; Next dev overlay shows stack frame fetching.
+- Failover & queuing: none.
+
+## 12. Known Issues, Risks, and Weak Spots
+- Dev-only errors:
+  - `net::ERR_ABORTED ...?_rsc=...` due to HMR canceled fetches; mitigated by disabling Link prefetch for certain routes.
+  - Source-map warnings previously triggered by server render errors; fixed by removing improper `cookies().get` usage.
+- Server cookies in RSC:
+  - SSR cookie mutations disabled (no-ops) to avoid dynamic API misuse; any write should be in server actions or route handlers.
+- Missing indexes:
+  - Frequent queries on `(user_id, date)` for `physio_logs` and `sessions` should have explicit indexes/unique constraints.
+- Insights:
+  - Charting not implemented; current page is static text with simple aggregations; performance may degrade without indexing.
+- Testing:
+  - No automated test coverage; high risk of regressions.
+- Admin routes:
+  - Use service role; ensure they are not exposed accidentally and protected behind privileged environments.
+- Data consistency:
+  - `caffeine_events` and `water_events` `date` default is `now()::date`, which can diverge from `event_time::date` if custom times are provided; helpers set `date` when `event_time` is passed but DB default doesn’t enforce alignment automatically.
+
+## 13. Recommendations
+- Architecture:
+  - Implement server actions or route handlers for cookie writes when needed; keep RSC pure.
+  - Introduce a small service layer around DB helpers to centralize validation and mapping.
+- Refactoring:
+  - Extract shared UI primitives (chips, buttons) and apply consistent dark-mode styles.
+  - Consolidate environment handling and errors into a utility.
+- Performance:
+  - Add indexes:
+    - `physio_logs (user_id, date)` unique
+    - `sessions (user_id, date)`
+    - Consider indexes on `flow_recipe_items (user_id, order_index)`
+  - Paginate sessions lists.
+- UX:
+  - Implement Recharts-based charts for insights with toggles and tooltips.
+  - Add refresh/invalidation after quick logs to update dashboard KPIs immediately.
+- Security:
+  - Audit API routes; ensure they require server-only envs and are disabled in client.
+  - Consider rate limiting and CSRF for any future form posts.
+- Data integrity:
+  - Consider generated or trigger-based `date = event_time::date` for events to ensure alignment (address immutability constraints with a trigger).
+  - Add DB constraints for physio unique per user/day.
+- ETL:
+  - If insights grow, add scheduled aggregation into reporting tables with idempotent jobs.
+- Validation:
+  - Enforce numeric ranges in client + server policies where possible; sanitize strings.
+
+## 14. Final Appendices
+- Table field glossaries:
+  - `physio_logs`: `energy/mood/focus_clarity/stress` integers 0–10; `sleep_hours` numeric; `sleep_quality` int; `caffeine_total_mg` numeric; `day_tags` text[]; `day_notes` text.
+  - `sessions`: `start_time/end_time` ISO timestamptz; `duration_seconds` integer; `flow_rating` 0–10; `activity/notes/environment/noise/session_type` text.
+  - `flow_recipe_items`: `order_index` integer; `title/notes` text.
+  - `caffeine_events`: `mg` numeric; `source/label` text; `session_id` optional; `event_time` timestamptz; `date` date.
+  - `water_events`: `ml` int; `source` text; `event_time` timestamptz; `date` date.
+- Important constants:
+  - Day tags: `partner_sleepover`, `travel_day`, `sick`, `hangover`, `big_shooting_day`, `heavy_conflict`, `social_overload`, `social_recharge`.
+- Domain vocabulary:
+  - “Flow” (subjective productivity rating), “Daily physio” (state snapshot), “Flow recipe” (user’s practices), “Quick log” (fast logging cards).
+- Developer onboarding checklist:
+  - Create `.env.local` with required Supabase envs (`NEXT_PUBLIC_*`, `SUPABASE_*`).
+  - Run `npm install` then `npm run dev`.
+  - Ensure Supabase project keys match remote; apply migrations in `supabase/migrations`.
+  - Test sign-in via `components/auth/SignInInline.tsx`.
+  - Navigate to `/dashboard`, `/physio/new`, `/sessions`, `/flow-recipe`.
+- How to run correctly:
+  - Use Next dev server for local (`npm run dev`). For production-like testing, run `npm run build && npm run start`.
+  - Disable Link prefetch if you see dev abort logs; production builds won’t have HMR.
+- Things new developers should NEVER do:
+  - Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser or client code.
+  - Never write cookies in server components; perform mutations within server actions or route handlers.
+  - Never bypass RLS for normal user flows; fix policies/queries instead.
+

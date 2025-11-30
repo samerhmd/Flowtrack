@@ -8,6 +8,11 @@ export interface DailyInsightRow {
   sleep_quality: number | null
   caffeine_total_mg: number | null
   hrv_score: number | null
+  resting_hr?: number | null
+  training_minutes?: number | null
+  merged_sleep_hours?: number | null
+  merged_hrv_score?: number | null
+  merged_resting_hr?: number | null
   has_partner_sleepover: boolean
   has_sick_tag: boolean
 }
@@ -22,6 +27,7 @@ export async function getDailyInsightsData(
   fromDate.setDate(toDate.getDate() - (days - 1))
 
   const fromStr = fromDate.toISOString().slice(0, 10)
+  const toStr = toDate.toISOString().slice(0, 10)
 
   const { data: sessions, error: sessErr } = await supabase
     .from('sessions')
@@ -37,6 +43,26 @@ export async function getDailyInsightsData(
     .order('date', { ascending: true })
   if (physErr) throw physErr
 
+  let externalRows: any[] | null = null
+  try {
+    const { data: ext, error: externalError } = await supabase
+      .from('external_daily_snapshots')
+      .select('date, provider, sleep_hours, sleep_quality, resting_hr, hrv_score, raw_payload')
+      .gte('date', fromStr)
+      .lte('date', toStr)
+      .order('date', { ascending: true })
+    if (externalError) {
+      console.error('Error fetching external_daily_snapshots', externalError)
+    }
+    externalRows = ext || []
+    if (process.env.NODE_ENV !== 'production') {
+      const sampleDates = (externalRows || []).slice(0, 5).map(r => r?.date).filter(Boolean)
+      console.log('[insights] external rows loaded:', externalRows.length, sampleDates)
+    }
+  } catch (e) {
+    externalRows = []
+  }
+
   const sessionsByDate = new Map<string, number[]>()
   for (const s of sessions || []) {
     const arr = sessionsByDate.get(s.date) || []
@@ -46,6 +72,14 @@ export async function getDailyInsightsData(
 
   const physioByDate = new Map<string, any>()
   for (const p of physios || []) physioByDate.set(p.date, p)
+
+  const externalByDate = new Map<string, any>()
+  for (const row of externalRows || []) {
+    const existing = externalByDate.get(row.date)
+    if (!existing || String(row.provider).toLowerCase() === 'garmin') {
+      externalByDate.set(row.date, row)
+    }
+  }
 
   const rows: DailyInsightRow[] = []
   for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
@@ -65,7 +99,7 @@ export async function getDailyInsightsData(
     const hasPartner = Array.isArray(tags) && tags.includes('partner_sleepover')
     const hasSick = Array.isArray(tags) && tags.includes('sick')
 
-    rows.push({
+    let row: DailyInsightRow = {
       date: dateStr,
       avg_flow,
       session_count,
@@ -73,9 +107,43 @@ export async function getDailyInsightsData(
       sleep_quality,
       caffeine_total_mg,
       hrv_score,
+      resting_hr: null,
+      training_minutes: null,
+      merged_sleep_hours: null,
+      merged_hrv_score: null,
+      merged_resting_hr: null,
       has_partner_sleepover: !!hasPartner,
       has_sick_tag: !!hasSick,
-    })
+    }
+
+    const ext = externalByDate.get(dateStr)
+    if (ext) {
+      row.sleep_hours = row.sleep_hours != null && !Number.isNaN(row.sleep_hours)
+        ? row.sleep_hours
+        : (ext.sleep_hours ?? row.sleep_hours ?? null)
+      row.sleep_quality = row.sleep_quality != null && !Number.isNaN(row.sleep_quality)
+        ? row.sleep_quality
+        : (ext.sleep_quality ?? row.sleep_quality ?? null)
+      row.resting_hr = ext.resting_hr ?? row.resting_hr ?? null
+      row.hrv_score = row.hrv_score != null && !Number.isNaN(row.hrv_score)
+        ? row.hrv_score
+        : (ext.hrv_score ?? row.hrv_score ?? null)
+      const tm = (ext as any)?.training_minutes ?? (ext as any)?.raw_payload?.training_minutes ?? null
+      row.training_minutes = tm ?? row.training_minutes ?? null
+    }
+
+    // Build merged fields used by UI (physio first, then external fallback)
+    row.merged_sleep_hours = row.sleep_hours != null && !Number.isNaN(row.sleep_hours)
+      ? row.sleep_hours
+      : (ext?.sleep_hours ?? null)
+    row.merged_hrv_score = row.hrv_score != null && !Number.isNaN(row.hrv_score)
+      ? row.hrv_score
+      : (ext?.hrv_score ?? null)
+    row.merged_resting_hr = row.resting_hr != null && !Number.isNaN(row.resting_hr as number)
+      ? row.resting_hr
+      : (ext?.resting_hr ?? null)
+
+    rows.push(row)
   }
 
   return rows.sort((a, b) => a.date.localeCompare(b.date))

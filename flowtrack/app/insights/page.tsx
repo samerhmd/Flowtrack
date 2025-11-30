@@ -68,7 +68,14 @@ import { getDailyInsightsData } from '@/lib/db/insights';
 export default async function InsightsPage() {
   const cookieStore = await cookies();
   const supabase = createSupabaseServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  let user: any = null;
+  const canGetUser = typeof (supabase as any)?.auth?.getUser === 'function';
+  if (canGetUser) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data?.user ?? null;
+    } catch {}
+  }
   if (!user) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto mt-8">
@@ -83,7 +90,12 @@ export default async function InsightsPage() {
     );
   }
 
-  const rows = await getDailyInsightsData(supabase, 90);
+  let rows: Awaited<ReturnType<typeof getDailyInsightsData>> = [];
+  try {
+    rows = await getDailyInsightsData(supabase, 90);
+  } catch {
+    rows = [];
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto mt-8">

@@ -9,6 +9,11 @@ export interface DailyInsightRow {
   sleep_quality: number | null
   caffeine_total_mg: number | null
   hrv_score: number | null
+  resting_hr?: number | null
+  training_minutes?: number | null
+  merged_sleep_hours?: number | null
+  merged_hrv_score?: number | null
+  merged_resting_hr?: number | null
   has_partner_sleepover: boolean
   has_sick_tag: boolean
 }
@@ -91,12 +96,19 @@ export default function InsightsView({ data }: { data: DailyInsightRow[] }) {
         <div className="text-xs">
           <h2 className="text-sm font-semibold mb-2 dark:text-gray-200">Daily trends (avg flow vs sleep/caffeine)</h2>
           <div className="space-y-1">
-            {chartData.map(r => (
-              <div key={r.date} className="flex justify-between">
-                <span className="dark:text-gray-300">{r.date}</span>
-                <span className="dark:text-gray-200">flow {r.avg_flow ?? '–'} · sleep {r.sleep_hours ?? '–'}h · caf {r.caffeine_total_mg ?? '–'}mg</span>
-              </div>
-            ))}
+            {chartData.map(row => {
+              const sleep = (row.merged_sleep_hours ?? row.sleep_hours)
+              const sleepText = sleep != null && !Number.isNaN(sleep) ? `${Math.round(sleep * 10) / 10}h` : '–h'
+              const flowText = row.avg_flow != null && !Number.isNaN(row.avg_flow) ? String((row.avg_flow as number).toFixed(1)).replace(/\.0$/, '') : '–'
+              const caf = row.caffeine_total_mg ?? null
+              const cafText = caf != null && !Number.isNaN(caf) ? `${Math.round(Number(caf))}mg` : '–mg'
+              return (
+                <div key={row.date} className="flex justify_between">
+                  <span className="font-mono dark:text-gray-300">{row.date}</span>
+                  <span className="dark:text-gray-200">flow {flowText} · sleep {sleepText} · caf {cafText}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

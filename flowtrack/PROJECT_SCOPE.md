@@ -163,7 +163,23 @@
   - Environment groups (home, office, cafe, other, unknown)
   - Time of day (morning, afternoon, evening)
 - Renders lists sorted by average flow with counts; handles empty states
+- Sleep / HR / HRV sources: manual physio_logs first; if missing, fall back to external daily snapshots (Tier 0 Garmin CSV imports, provider = 'garmin').
  - Supports date range filters (7/30/90 days) and the ability to exclude sick days and partner_sleepover days from the charts
+
+## Import (Tier 0 – Garmin CSV)
+- Route: `/import`
+- Purpose: manual ingestion of Garmin CSV exports into `external_daily_snapshots`.
+- Inputs:
+  - Sleep CSV
+  - HRV Status CSV
+  - Heart Rate CSV
+  - Activities CSV
+- Behavior:
+  - All CSVs are optional; any subset can be uploaded together.
+  - Backend parses and merges per-day snapshots:
+    - `sleep_duration_min`, `sleep_score`, `hrv_ms`, `resting_hr_bpm`, `training_minutes`.
+  - Writes via `upsertExternalDailySnapshot` with `provider = 'garmin'` and preserves extra fields in `raw_payload`.
+  - Tier 0: no real-time sync, no OAuth; optimized for monthly manual uploads.
 
 ## API Routes (server-only)
 ### POST `/api/physio/upsert`

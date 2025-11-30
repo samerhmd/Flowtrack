@@ -71,6 +71,9 @@ export default function DashboardPage() {
           <Link href="/sessions/new">
             <Button variant="primary">Start Session</Button>
           </Link>
+          <Link href="/import">
+            <Button variant="secondary">Import Garmin CSV</Button>
+          </Link>
           <Link href="/today" prefetch={false} className="text-xs font-medium text-sky-500 hover:underline self-center">
             Go to Today view
           </Link>
