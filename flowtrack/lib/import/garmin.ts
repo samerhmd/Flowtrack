@@ -5,6 +5,10 @@ export interface GarminDailySnapshot {
   hrv_ms?: number | null
   resting_hr_bpm?: number | null
   training_minutes?: number | null
+  sleepMinutes?: number
+  sleepHours?: number
+  sleepScore?: number
+  rawPayload?: Record<string, unknown>
 }
 
 export interface GarminImportFiles {
@@ -149,6 +153,76 @@ function selectDateKey(row: Record<string, string>): string | null {
   return null
 }
 
+function parseGarminSleepMinutes(row: Record<string, string>): number | undefined {
+  const directCandidates: (string | undefined)[] = [
+    row['Sleep Duration'],
+    row['Duration'],
+    row['Sleep (duration)'],
+    row['Duration (hh:mm)'],
+    row['Time Asleep'],
+    row['Hours Asleep'],
+  ]
+  let raw = directCandidates.find((v) => v != null && v.trim() !== '')
+  if (!raw) {
+    const durationKey = Object.keys(row).find((key) => {
+      const k = key.toLowerCase()
+      return k.includes('sleep') && (k.includes('duration') || k.includes('time asleep') || k.includes('hours'))
+    })
+    if (durationKey) raw = row[durationKey]
+  }
+  if (!raw) return undefined
+  raw = raw.trim()
+  const hm = raw.match(/(\d+)\s*h\s*(\d+)\s*m/i)
+  if (hm) {
+    const h = Number(hm[1]); const m = Number(hm[2])
+    if (Number.isFinite(h) && Number.isFinite(m)) return h * 60 + m
+  }
+  if (raw.includes(':')) {
+    const [hStr, mStr] = raw.split(':')
+    const h = Number(hStr); const m = Number(mStr)
+    if (Number.isFinite(h) && Number.isFinite(m)) return h * 60 + m
+  }
+  const hOnly = raw.match(/(\d+)\s*h/i)
+  if (hOnly) {
+    const h = Number(hOnly[1])
+    if (Number.isFinite(h)) return h * 60
+  }
+  const minOnly = raw.match(/(\d+)\s*(min|m)\b/i)
+  if (minOnly) {
+    const m = Number(minOnly[1])
+    if (Number.isFinite(m)) return m
+  }
+  const float = Number(raw)
+  if (Number.isFinite(float)) {
+    if (float <= 24) return Math.round(float * 60)
+    return Math.round(float)
+  }
+  return undefined
+}
+
+function parseSleepScore(row: Record<string, string>): number | undefined {
+  const explicit = [
+    'Sleep Score',
+    'Sleep Score (0-100)',
+    'Overall Sleep Score',
+    'Overall Score',
+    'Score',
+  ]
+  let raw: string | undefined
+  for (const key of explicit) {
+    const v = row[key]
+    if (v != null && v.trim() !== '') { raw = v.trim(); break }
+  }
+  if (!raw) {
+    const dynamicKey = Object.keys(row).find((key) => key.toLowerCase().includes('sleep') && key.toLowerCase().includes('score'))
+    if (dynamicKey && row[dynamicKey]) raw = row[dynamicKey].trim()
+  }
+  if (!raw && row['Score']) raw = row['Score'].trim()
+  if (!raw) return undefined
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : undefined
+}
+
 export function parseGarminSleep(csvText: string): Map<string, Partial<GarminDailySnapshot>> {
   const map = new Map<string, Partial<GarminDailySnapshot>>()
   const rows = parseSimpleCsv(csvText)
@@ -184,47 +258,10 @@ export function parseGarminSleep(csvText: string): Map<string, Partial<GarminDai
     if (!iso) continue
     const keys = Object.keys(r)
     const lkeys = keys.map(k => k.toLowerCase())
-    const durationCandidates = [
-      'sleep duration',
-      'total sleep time',
-      'time asleep',
-      'duration',
-      'asleep time',
-      'minutes asleep',
-      'hours asleep',
-    ]
-    let durKey: string | undefined
-    for (const cand of durationCandidates) {
-      const idx = lkeys.findIndex(k => k.includes(cand))
-      if (idx >= 0) { durKey = keys[idx]; break }
-    }
-    if (!durKey) {
-      const hasSleepKey = lkeys.some(k => k.includes('sleep'))
-      const idx2 = hasSleepKey ? lkeys.findIndex(k => k.includes('duration') || k.includes('minutes')) : -1
-      if (idx2 >= 0) durKey = keys[idx2]
-    }
-    const sleepMin = parseDurationToMinutes(durKey ? r[durKey] : undefined)
-    // robust sleep score detection (case-insensitive)
-    const scoreCandidates = [
-      'sleep score',
-      'sleep_score',
-      'score',
-      'quality score',
-    ]
-    let scoreKey: string | undefined
-    for (const cand of scoreCandidates) {
-      const idx = lkeys.findIndex(k => k.includes(cand))
-      if (idx >= 0) { scoreKey = keys[idx]; break }
-    }
-    // if only generic 'score' exists, prefer one near sleep fields
-    if (!scoreKey) {
-      const genericIdx = lkeys.findIndex(k => k.includes('score'))
-      if (genericIdx >= 0) scoreKey = keys[genericIdx]
-    }
-    const scoreVal = scoreKey ? Number((r[scoreKey] ?? '').trim()) : NaN
-    const sleepScore = isNaN(scoreVal) ? null : scoreVal
+    const sleepMin = parseGarminSleepMinutes(r)
+    const sleepScore = parseSleepScore(r) ?? null
     const cur = map.get(iso) || {}
-    map.set(iso, { ...cur, sleep_duration_min: sleepMin, sleep_score: sleepScore })
+    map.set(iso, { ...cur, sleep_duration_min: sleepMin ?? null, sleep_score: sleepScore })
   }
   return map
 }
@@ -321,9 +358,28 @@ export function buildGarminDailySnapshots(files: GarminImportFiles): GarminDaily
   if (files.heartRateCsv) parts.push(parseGarminHeartRate(files.heartRateCsv))
   if (files.activitiesCsv) parts.push(parseGarminActivities(files.activitiesCsv))
   const merged = mergeGarminSnapshots(parts)
-  const rows = Array.from(merged.values())
-  rows.sort((a, b) => a.date.localeCompare(b.date))
-  return rows
+  const result: GarminDailySnapshot[] = []
+  for (const [date, snap] of merged.entries()) {
+    const minutes = typeof snap.sleep_duration_min === 'number' ? snap.sleep_duration_min : undefined
+    const hours = typeof minutes === 'number' ? minutes / 60 : undefined
+    result.push({
+      date,
+      sleep_duration_min: snap.sleep_duration_min ?? null,
+      sleep_score: snap.sleep_score ?? null,
+      hrv_ms: snap.hrv_ms ?? null,
+      resting_hr_bpm: snap.resting_hr_bpm ?? null,
+      training_minutes: snap.training_minutes ?? null,
+      sleepMinutes: minutes,
+      sleepHours: hours,
+      sleepScore: typeof snap.sleep_score === 'number' ? snap.sleep_score : undefined,
+      rawPayload: {
+        sleep_duration_min: snap.sleep_duration_min ?? null,
+        sleep_score: snap.sleep_score ?? null,
+      },
+    })
+  }
+  result.sort((a, b) => a.date.localeCompare(b.date))
+  return result
 }
 function normalizeGarminDateWithRow(raw: string | null | undefined, row: Record<string, string>): string | null {
   let iso = normalizeGarminDate(raw)
