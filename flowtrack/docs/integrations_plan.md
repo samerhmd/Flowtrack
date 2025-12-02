@@ -33,4 +33,6 @@ We provide a placeholder helper to upsert daily snapshots (no network calls yet)
 
 ## Notes
 - No HTTP integration implemented in v2/v3 context; this is schema + helper only.
+- Date normalization: importer enforces strict `YYYY-MM-DD` within year range [2010, 2100]. Rows with invalid dates are skipped and logged.
+- Merge precedence in insights: physio fields take precedence; if physio sleep is missing, external sleep (e.g., Garmin) is used after numeric coercion.
 - Future work: OAuth/device linking, scheduled ingestion jobs, reconciliation of provider data with local `physio_logs`.

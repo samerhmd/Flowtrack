@@ -165,6 +165,8 @@
 - Renders lists sorted by average flow with counts; handles empty states
 - Sleep / HR / HRV sources: manual physio_logs first; if missing, fall back to external daily snapshots (Tier 0 Garmin CSV imports, provider = 'garmin').
  - Supports date range filters (7/30/90 days) and the ability to exclude sick days and partner_sleepover days from the charts
+ - Merge precedence: physio fields first, then external (Garmin) sleep if physio is missing. Numeric fields are coerced to numbers during merge.
+ - Date normalization rule: external imports only accept valid `YYYY-MM-DD` in year range [2010, 2100]; rows outside range are skipped and logged.
 
 ## Import (Tier 0 – Garmin CSV)
 - Route: `/import`

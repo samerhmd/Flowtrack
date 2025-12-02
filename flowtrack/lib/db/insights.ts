@@ -50,6 +50,7 @@ export async function getDailyInsightsData(
       .select('date, provider, sleep_hours, sleep_quality, resting_hr, hrv_score, raw_payload')
       .gte('date', fromStr)
       .lte('date', toStr)
+      .eq('provider', 'garmin')
       .order('date', { ascending: true })
     if (externalError) {
       console.error('Error fetching external_daily_snapshots', externalError)

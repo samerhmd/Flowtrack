@@ -329,7 +329,13 @@ function normalizeGarminDateWithRow(raw: string | null | undefined, row: Record<
         const yyyy = d.getFullYear()
         const mm = String(d.getMonth() + 1).padStart(2, '0')
         const dd = String(d.getDate()).padStart(2, '0')
-        return `${yyyy}-${mm}-${dd}`
+        if (yyyy < 2010 || yyyy > 2100) {
+          console.warn('normalizeGarminDateWithRow: out-of-range year', yyyy, 'from', s, 'yearKey', yearKey, 'yraw', yraw)
+          return null
+        }
+        const out = `${yyyy}-${mm}-${dd}`
+        if (process.env.NODE_ENV !== 'production') console.log('[garmin] normalizeWithRow raw=', s, 'joinedYear=', yraw, '->', out)
+        return out
       }
     }
   }
