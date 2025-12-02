@@ -186,10 +186,28 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-4">
-            <Link href="/flow-recipe" prefetch={false} className="text-sm text-blue-600 hover:underline">
+            <Link
+              href="/flow-recipe"
+              prefetch={false}
+              className="text-sm text-blue-600 hover:underline"
+              onClick={(e) => {
+                if (navLock) { e.preventDefault(); return }
+                setNavLock(true)
+                setTimeout(() => setNavLock(false), 1200)
+              }}
+            >
               View flow recipe →
             </Link>
-            <Link href="/insights" prefetch={false} className="text-sm text-blue-600 hover:underline">
+            <Link
+              href="/insights"
+              prefetch={false}
+              className="text-sm text-blue-600 hover:underline"
+              onClick={(e) => {
+                if (navLock) { e.preventDefault(); return }
+                setNavLock(true)
+                setTimeout(() => setNavLock(false), 1200)
+              }}
+            >
               View insights →
             </Link>
           </div>

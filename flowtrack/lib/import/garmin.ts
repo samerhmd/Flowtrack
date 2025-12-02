@@ -204,8 +204,24 @@ export function parseGarminSleep(csvText: string): Map<string, Partial<GarminDai
       if (idx2 >= 0) durKey = keys[idx2]
     }
     const sleepMin = parseDurationToMinutes(durKey ? r[durKey] : undefined)
-    const scoreKey = keys.find(k => k.includes('sleep') && k.includes('score')) ?? keys.find(k => k.includes('score'))
-    const scoreVal = scoreKey ? Number(r[scoreKey]) : NaN
+    // robust sleep score detection (case-insensitive)
+    const scoreCandidates = [
+      'sleep score',
+      'sleep_score',
+      'score',
+      'quality score',
+    ]
+    let scoreKey: string | undefined
+    for (const cand of scoreCandidates) {
+      const idx = lkeys.findIndex(k => k.includes(cand))
+      if (idx >= 0) { scoreKey = keys[idx]; break }
+    }
+    // if only generic 'score' exists, prefer one near sleep fields
+    if (!scoreKey) {
+      const genericIdx = lkeys.findIndex(k => k.includes('score'))
+      if (genericIdx >= 0) scoreKey = keys[genericIdx]
+    }
+    const scoreVal = scoreKey ? Number((r[scoreKey] ?? '').trim()) : NaN
     const sleepScore = isNaN(scoreVal) ? null : scoreVal
     const cur = map.get(iso) || {}
     map.set(iso, { ...cur, sleep_duration_min: sleepMin, sleep_score: sleepScore })
